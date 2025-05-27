@@ -34,7 +34,8 @@ add_rule() {
 				else
 					nft "insert rule inet fw4 forward_lan ether saddr { ${macaddr} } meta hour \"${timeon}\"-\"${timeoff}\" meta day { ${days} } counter jump reject_to_wan comment \"!fw4: timecontrol\""
 				fi
-				ipaddr_list=$(ip neigh | grep -i "${macaddr}" | awk '{print $1}')
+				regex=$(echo ${macaddr} | sed 's/,/|/g')           
+				ipaddr_list=$(ip neigh | grep -i -E "${regex}" | awk '{print $1}')
 
 				for ipaddr in $ipaddr_list; do
 					conntrack -D --orig-src ${ipaddr} >/dev/null 2>&1
