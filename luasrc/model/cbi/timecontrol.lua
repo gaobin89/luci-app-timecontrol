@@ -21,9 +21,11 @@ t.addremove = true
 e = t:option(Flag, "enable", translate("Enabled"))
 e.rmempty = false
 
-e = t:option(Value, "macaddr", "MAC")
+e = t:option(DynamicList, "macaddr", "MAC")
 e.rmempty = true
-o.net.mac_hints(function(t, a) e:value(t, "%s (%s)" % {t, a}) end)
+o.net.mac_hints(function(t, a)
+    e:value(t, "%s (%s)" % {t, a})
+end)
 
 e = t:option(Value, "timeon", translate("No Internet start time"))
 e.default = "00:00:00"
@@ -33,25 +35,14 @@ e = t:option(Value, "timeoff", translate("No Internet end time"))
 e.default = "23:59:59"
 e.optional = false
 
-e = t:option(Flag, "z1", translate("Monday"))
+e = t:option(MultiValue, "days", translate("Days of Week"))
 e.rmempty = true
-
-e = t:option(Flag, "z2", translate("Tuesday"))
-e.rmempty = true
-
-e = t:option(Flag, "z3", translate("Wednesday"))
-e.rmempty = true
-
-e = t:option(Flag, "z4", translate("Thursday"))
-e.rmempty = true
-
-e = t:option(Flag, "z5", translate("Friday"))
-e.rmempty = true
-
-e = t:option(Flag, "z6", translate("Saturday"))
-e.rmempty = true
-
-e = t:option(Flag, "z7", translate("Sunday"))
-e.rmempty = true
+e:value("0", translate("Sunday"))
+e:value("1", translate("Monday"))
+e:value("2", translate("Tuesday"))
+e:value("3", translate("Wednesday"))
+e:value("4", translate("Thursday"))
+e:value("5", translate("Friday"))
+e:value("6", translate("Saturday"))
 
 return a

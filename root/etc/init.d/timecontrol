@@ -19,36 +19,21 @@ add_rule() {
 		}
 		for i in $(seq 0 $count); do
 			local enable=$(u_get $i enable 0)
-			local macaddr=$(u_get $i macaddr)
+			local macaddr=$(u_get $i macaddr | sed 's/ /,/g')
 			local timeoff=$(u_get $i timeoff)
 			local timeon=$(u_get $i timeon)
-			local z1=$(u_get $i z1)
-			local z2=$(u_get $i z2)
-			local z3=$(u_get $i z3)
-			local z4=$(u_get $i z4)
-			local z5=$(u_get $i z5)
-			local z6=$(u_get $i z6)
-			local z7=$(u_get $i z7)
-
-			day_list=""
-
-			[ "$z7" = "1" ] && day_list="${day_list}0,"
-			[ "$z1" = "1" ] && day_list="${day_list}1,"
-			[ "$z2" = "1" ] && day_list="${day_list}2,"
-			[ "$z3" = "1" ] && day_list="${day_list}3,"
-			[ "$z4" = "1" ] && day_list="${day_list}4,"
-			[ "$z5" = "1" ] && day_list="${day_list}5,"
-			[ "$z6" = "1" ] && day_list="${day_list}6,"
-
-			[ -n "$day_list" ] && day_list=$(echo "$day_list" | sed 's/,$//')
-
-			[ -z "$day_list" ] && continue
+			local days=$(u_get $i days | sed 's/ /,/g')
 
 			if [ -z $enable ] || [ -z $macaddr ] || [ -z $timeoff ] || [ -z $timeon ]; then
 				continue
 			fi
 			if [ "$enable" == "1" ]; then
-				nft "insert rule inet fw4 forward_lan ether saddr ${macaddr} meta hour \"${timeon}\"-\"${timeoff}\" meta day { ${day_list} } counter jump reject_to_wan comment \"!fw4: timecontrol\""
+
+				if [ -z "$days" ]; then
+					nft "insert rule inet fw4 forward_lan ether saddr { ${macaddr} } meta hour \"${timeon}\"-\"${timeoff}\" counter jump reject_to_wan comment \"!fw4: timecontrol\""
+				else
+					nft "insert rule inet fw4 forward_lan ether saddr { ${macaddr} } meta hour \"${timeon}\"-\"${timeoff}\" meta day { ${days} } counter jump reject_to_wan comment \"!fw4: timecontrol\""
+				fi
 				ipaddr_list=$(ip neigh | grep -i "${macaddr}" | awk '{print $1}')
 
 				for ipaddr in $ipaddr_list; do
