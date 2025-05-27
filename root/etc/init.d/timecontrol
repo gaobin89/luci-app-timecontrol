@@ -1,0 +1,80 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+CONFIG=timecontrol
+
+uci_get_by_type() {
+	local index=0
+	[ -n $4 ] && index=$4
+	local ret=$(uci -q get $CONFIG.@$1[$index].$2 2>/dev/null)
+	echo ${ret:=$3}
+}
+
+add_rule() {
+	local count=$(uci show $CONFIG | grep "@macbind" | sed -n '$p' | cut -d '[' -f 2 | cut -d ']' -f 1)
+	[ -n "$count" ] && [ "$count" -ge 0 ] && {
+		u_get() {
+			local ret=$(uci -q get $CONFIG.@macbind[$1].$2)
+			echo ${ret:=$3}
+		}
+		for i in $(seq 0 $count); do
+			local enable=$(u_get $i enable 0)
+			local macaddr=$(u_get $i macaddr)
+			local timeoff=$(u_get $i timeoff)
+			local timeon=$(u_get $i timeon)
+			local z1=$(u_get $i z1)
+			local z2=$(u_get $i z2)
+			local z3=$(u_get $i z3)
+			local z4=$(u_get $i z4)
+			local z5=$(u_get $i z5)
+			local z6=$(u_get $i z6)
+			local z7=$(u_get $i z7)
+
+			day_list=""
+
+			[ "$z7" = "1" ] && day_list="${day_list}0,"
+			[ "$z1" = "1" ] && day_list="${day_list}1,"
+			[ "$z2" = "1" ] && day_list="${day_list}2,"
+			[ "$z3" = "1" ] && day_list="${day_list}3,"
+			[ "$z4" = "1" ] && day_list="${day_list}4,"
+			[ "$z5" = "1" ] && day_list="${day_list}5,"
+			[ "$z6" = "1" ] && day_list="${day_list}6,"
+
+			[ -n "$day_list" ] && day_list=$(echo "$day_list" | sed 's/,$//')
+
+			[ -z "$day_list" ] && continue
+
+			if [ -z $enable ] || [ -z $macaddr ] || [ -z $timeoff ] || [ -z $timeon ]; then
+				continue
+			fi
+			if [ "$enable" == "1" ]; then
+				nft "insert rule inet fw4 forward_lan ether saddr ${macaddr} meta hour \"${timeon}\"-\"${timeoff}\" meta day { ${day_list} } counter jump reject_to_wan comment \"!fw4: timecontrol\""
+				ipaddr_list=$(ip neigh | grep -i "${macaddr}" | awk '{print $1}')
+
+				for ipaddr in $ipaddr_list; do
+					conntrack -D --orig-src ${ipaddr} >/dev/null 2>&1
+				done
+			fi
+		done
+
+	}
+	echo "/etc/init.d/timecontrol restart" >"/var/etc/timecontrol.include"
+}
+
+del_rule() {
+	rule_handles=$(nft -a list ruleset | grep -E "!fw4: timecontrol" | sed -n 's/.*# handle \([0-9]\+\).*/\1/p')
+
+	for handle in $rule_handles; do
+		nft delete rule inet fw4 forward_lan handle $handle
+	done
+}
+
+start() {
+	ENABLED=$(uci_get_by_type basic enable 0)
+	[ "$ENABLED" != "1" ] && exit 0
+	add_rule
+}
+
+stop() {
+	del_rule
+}
