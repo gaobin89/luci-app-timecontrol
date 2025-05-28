@@ -30,10 +30,14 @@ end)
 e = t:option(Value, "timeon", translate("No Internet start time"))
 e.default = "00:00:00"
 e.optional = false
+e.modalonly = true
+e.datatype = "timehhmmss"
 
 e = t:option(Value, "timeoff", translate("No Internet end time"))
 e.default = "23:59:59"
 e.optional = false
+e.modalonly = true
+e.datatype = "timehhmmss"
 
 e = t:option(MultiValue, "days", translate("Days of Week"))
 e.rmempty = true
