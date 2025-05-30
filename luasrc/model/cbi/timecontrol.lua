@@ -41,12 +41,12 @@ e.datatype = "timehhmmss"
 
 e = t:option(MultiValue, "days", translate("Days of Week"))
 e.rmempty = true
-e:value("0", translate("Sunday"))
-e:value("1", translate("Monday"))
-e:value("2", translate("Tuesday"))
-e:value("3", translate("Wednesday"))
-e:value("4", translate("Thursday"))
-e:value("5", translate("Friday"))
-e:value("6", translate("Saturday"))
+e:value("Sunday", translate("Sunday"))
+e:value("Monday", translate("Monday"))
+e:value("Tuesday", translate("Tuesday"))
+e:value("Wednesday", translate("Wednesday"))
+e:value("Thursday", translate("Thursday"))
+e:value("Friday", translate("Friday"))
+e:value("Saturday", translate("Saturday"))
 
 return a

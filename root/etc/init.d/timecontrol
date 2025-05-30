@@ -2,12 +2,18 @@
 
 START=99
 CONFIG=timecontrol
+FW4=$(command -v fw4 2>/dev/null)
 
 uci_get_by_type() {
 	local index=0
 	[ -n $4 ] && index=$4
 	local ret=$(uci -q get $CONFIG.@$1[$index].$2 2>/dev/null)
 	echo ${ret:=$3}
+}
+
+set_iptables() {
+	iptables "$@"
+	ip6tables "$@"
 }
 
 add_rule() {
@@ -29,12 +35,27 @@ add_rule() {
 			fi
 			if [ "$enable" == "1" ]; then
 
-				if [ -z "$days" ]; then
-					nft "insert rule inet fw4 forward_lan ether saddr { ${macaddr} } meta hour \"${timeon}\"-\"${timeoff}\" counter jump reject_to_wan comment \"!fw4: timecontrol\""
+				if [ -z "$FW4" ]; then
+					OLD_IFS=$IFS
+					IFS=','
+					set -- $macaddr
+					IFS=$OLD_IFS
+					for mac in "$@"; do
+						if [ -z "$days" ] || [ "$days" == "Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday" ]; then
+							set_iptables -I zone_lan_forward -m mac --mac-source ${mac} -m time --timestart ${timeon} --timestop ${timeoff} --kerneltz -j zone_wan_dest_REJECT -m comment --comment "!fw3: Time control"
+						else
+							set_iptables -I zone_lan_forward -m mac --mac-source ${mac} -m time --timestart ${timeon} --timestop ${timeoff} --weekdays ${days} --kerneltz -j zone_wan_dest_REJECT -m comment --comment "!fw3: Time control"
+						fi
+					done
 				else
-					nft "insert rule inet fw4 forward_lan ether saddr { ${macaddr} } meta hour \"${timeon}\"-\"${timeoff}\" meta day { ${days} } counter jump reject_to_wan comment \"!fw4: timecontrol\""
+					if [ -z "$days" ] || [ "$days" == "Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday" ]; then
+						nft "insert rule inet fw4 forward_lan ether saddr { ${macaddr} } meta hour \"${timeon}\"-\"${timeoff}\" counter jump reject_to_wan comment \"!fw4: Time control\""
+					else
+						nft "insert rule inet fw4 forward_lan ether saddr { ${macaddr} } meta hour \"${timeon}\"-\"${timeoff}\" meta day { ${days} } counter jump reject_to_wan comment \"!fw4: Time control\""
+					fi
 				fi
-				regex=$(echo ${macaddr} | sed 's/,/|/g')           
+
+				regex=$(echo ${macaddr} | sed 's/,/|/g')
 				ipaddr_list=$(ip neigh | grep -i -E "${regex}" | awk '{print $1}')
 
 				for ipaddr in $ipaddr_list; do
@@ -48,11 +69,22 @@ add_rule() {
 }
 
 del_rule() {
-	rule_handles=$(nft -a list ruleset | grep -E "!fw4: timecontrol" | sed -n 's/.*# handle \([0-9]\+\).*/\1/p')
+	if [ -z "$FW4" ]; then
+		rule_numbers=$(iptables -L zone_lan_forward -n -v --line-numbers | grep '!fw3: Time control' | awk '{print $1}' | sort -r)
+		for num in $rule_numbers; do
+			iptables -D zone_lan_forward $num >/dev/null 2>&1
+		done
 
-	for handle in $rule_handles; do
-		nft delete rule inet fw4 forward_lan handle $handle
-	done
+		rule_numbers=$(ip6tables -L zone_lan_forward -n -v --line-numbers | grep '!fw3: Time control' | awk '{print $1}' | sort -r)
+		for num in $rule_numbers; do
+			ip6tables -D zone_lan_forward $num >/dev/null 2>&1
+		done
+	else
+		rule_handles=$(nft -a list ruleset | grep '!fw4: Time control' | sed -n 's/.*# handle \([0-9]\+\).*/\1/p')
+		for handle in $rule_handles; do
+			nft delete rule inet fw4 forward_lan handle $handle >/dev/null 2>&1
+		done
+	fi
 }
 
 start() {
