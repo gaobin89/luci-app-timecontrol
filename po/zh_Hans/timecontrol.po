@@ -13,11 +13,8 @@ msgstr "启用"
 msgid "Client Settings"
 msgstr "客户端设置"
 
-msgid "No Internet start time"
-msgstr "禁止上网开始时间"
-
-msgid "No Internet end time"
-msgstr "取消禁止上网时间"
+msgid "No Internet Time Range"
+msgstr "禁网时段"
 
 msgid "Monday"
 msgstr "星期一"
@@ -48,3 +45,15 @@ msgstr "运行中"
 
 msgid "NOT RUNNING"
 msgstr "未运行"
+
+msgid "Please select at least one MAC address"
+msgstr "请至少选择一个 MAC 地址"
+
+msgid "Invalid MAC address: "
+msgstr "MAC地址无效: "
+
+msgid "Invalid time range: "
+msgstr "时段无效: "
+
+msgid "Users can limit Internet usage time by MAC address, support iptables/nftables IPv4/IPv6"
+msgstr "用户可以通过 MAC 地址限制互联网使用时间，支持 iptables/nftables IPv4/IPv6"

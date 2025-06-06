@@ -1,98 +1,111 @@
 #!/bin/sh /etc/rc.common
 
 START=99
-CONFIG=timecontrol
+
+TIMECONTROL_ENABLE=0
 FW4=$(command -v fw4 2>/dev/null)
 
-uci_get_by_type() {
-	local index=0
-	[ -n $4 ] && index=$4
-	local ret=$(uci -q get $CONFIG.@$1[$index].$2 2>/dev/null)
-	echo ${ret:=$3}
-}
+interface=$(
+	. /lib/functions/network.sh
 
-set_iptables() {
-	iptables "$@"
-	ip6tables "$@"
+	network_is_up "lan" && network_get_device device "lan"
+	echo "${device:-br-lan}"
+)
+
+iptables_w() {
+	iptables -w 1 "$@" >/dev/null 2>&1
+	ip6tables -w 1 "$@" >/dev/null 2>&1
 }
 
 add_rule() {
-	local count=$(uci show $CONFIG | grep "@macbind" | sed -n '$p' | cut -d '[' -f 2 | cut -d ']' -f 1)
-	[ -n "$count" ] && [ "$count" -ge 0 ] && {
-		u_get() {
-			local ret=$(uci -q get $CONFIG.@macbind[$1].$2)
-			echo ${ret:=$3}
-		}
-		for i in $(seq 0 $count); do
-			local enable=$(u_get $i enable 0)
-			local macaddr=$(u_get $i macaddr | sed 's/ /,/g')
-			local timeoff=$(u_get $i timeoff)
-			local timeon=$(u_get $i timeon)
-			local days=$(u_get $i days | sed 's/ /,/g')
+	local enable macaddrlist timerangelist days
+	config_get enable "$1" enable "0"
+	config_get macaddrlist "$1" macaddrlist
+	config_get timerangelist "$1" timerangelist
+	config_get days "$1" days
 
-			if [ -z $enable ] || [ -z $macaddr ] || [ -z $timeoff ] || [ -z $timeon ]; then
-				continue
-			fi
-			if [ "$enable" == "1" ]; then
+	if [ -z "$enable" ] || [ "$enable" != "1" ] || [ -z "$macaddrlist" ] || [ -z "$timerangelist" ]; then
+		return 0
+	fi
 
-				if [ -z "$FW4" ]; then
-					OLD_IFS=$IFS
-					IFS=','
-					set -- $macaddr
-					IFS=$OLD_IFS
-					for mac in "$@"; do
-						if [ -z "$days" ] || [ "$days" == "Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday" ]; then
-							set_iptables -I zone_lan_forward -m mac --mac-source ${mac} -m time --timestart ${timeon} --timestop ${timeoff} --kerneltz -j zone_wan_dest_REJECT -m comment --comment "!fw3: Time control"
-						else
-							set_iptables -I zone_lan_forward -m mac --mac-source ${mac} -m time --timestart ${timeon} --timestop ${timeoff} --weekdays ${days} --kerneltz -j zone_wan_dest_REJECT -m comment --comment "!fw3: Time control"
-						fi
-					done
-				else
-					if [ -z "$days" ] || [ "$days" == "Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday" ]; then
-						nft "insert rule inet fw4 forward_lan ether saddr { ${macaddr} } meta hour \"${timeon}\"-\"${timeoff}\" counter jump reject_to_wan comment \"!fw4: Time control\""
-					else
-						nft "insert rule inet fw4 forward_lan ether saddr { ${macaddr} } meta hour \"${timeon}\"-\"${timeoff}\" meta day { ${days} } counter jump reject_to_wan comment \"!fw4: Time control\""
-					fi
-				fi
-
-				regex=$(echo ${macaddr} | sed 's/,/|/g')
-				ipaddr_list=$(ip neigh | grep -i -E "${regex}" | awk '{print $1}')
-
-				for ipaddr in $ipaddr_list; do
-					conntrack -D --orig-src ${ipaddr} >/dev/null 2>&1
-				done
-			fi
-		done
-
-	}
-	echo "/etc/init.d/timecontrol restart" >"/var/etc/timecontrol.include"
-}
-
-del_rule() {
-	if [ -z "$FW4" ]; then
-		rule_numbers=$(iptables -L zone_lan_forward -n -v --line-numbers | grep '!fw3: Time control' | awk '{print $1}' | sort -r)
-		for num in $rule_numbers; do
-			iptables -D zone_lan_forward $num >/dev/null 2>&1
-		done
-
-		rule_numbers=$(ip6tables -L zone_lan_forward -n -v --line-numbers | grep '!fw3: Time control' | awk '{print $1}' | sort -r)
-		for num in $rule_numbers; do
-			ip6tables -D zone_lan_forward $num >/dev/null 2>&1
-		done
+	if [ -z "$days" ]; then
+		days="Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday"
 	else
-		rule_handles=$(nft -a list ruleset | grep '!fw4: Time control' | sed -n 's/.*# handle \([0-9]\+\).*/\1/p')
-		for handle in $rule_handles; do
-			nft delete rule inet fw4 forward_lan handle $handle >/dev/null 2>&1
+		days=$(echo "$days" | sed 's/ /,/g')
+	fi
+
+	for timerange in $timerangelist; do
+		timeon=$(echo "$timerange" | awk -F '-' '{print $1}')
+		timeoff=$(echo "$timerange" | awk -F '-' '{print $2}')
+
+		if [ -z "$FW4" ]; then
+			for macaddr in $macaddrlist; do
+				iptables_w -t filter -A TIMECONTROL_REJECT -m mac --mac-source "$macaddr" -m time --kerneltz --timestart "$timeon" --timestop "$timeoff" --weekdays "$days" -j REJECT -m comment --comment "!fw3: Time control"
+			done
+		else
+			macaddr=$(echo $macaddrlist | sed 's/ /,/g')
+			nft "add rule inet fw4 timecontrol_reject ether saddr { ${macaddr} } meta hour \"${timeon}\"-\"${timeoff}\" meta day { ${days} } counter reject comment \"!fw4: Time control\""
+		fi
+	done
+	logger -t timecontrol "Added rules to timecontrol_reject (MAC: ${macaddrlist}, Time: ${timerangelist}, Days: ${days})"
+
+	if [ -n "$(command -v conntrack 2>/dev/null)" ]; then
+		regex=$(echo ${macaddrlist} | sed 's/ /|/g')
+		ipaddr_list=$(ip neigh | grep -i -E "${regex}" | awk '{print $1}')
+
+		for ipaddr in $ipaddr_list; do
+			conntrack -D --orig-src "$ipaddr" >/dev/null 2>&1
 		done
+		logger -t timecontrol "Deleted conntrack entries for IPs: ${ipaddr_list}"
 	fi
 }
 
+timecontrol_header() {
+	config_get TIMECONTROL_ENABLE "$1" enable "0"
+}
+
 start() {
-	ENABLED=$(uci_get_by_type basic enable 0)
-	[ "$ENABLED" != "1" ] && exit 0
-	add_rule
+	config_load timecontrol
+	config_foreach timecontrol_header basic
+
+	[ "$TIMECONTROL_ENABLE" != "1" ] && return 0
+
+	logger -t timecontrol "Starting Time Control"
+
+	if [ -z "$FW4" ]; then
+		iptables_w -t filter -N TIMECONTROL_REJECT
+		iptables_w -t filter -F TIMECONTROL_REJECT
+		iptables_w -t filter -C FORWARD -j TIMECONTROL_REJECT -i $interface || iptables_w -t filter -I FORWARD -j TIMECONTROL_REJECT -i $interface
+	else
+		nft 'add chain inet fw4 timecontrol_reject'
+		nft "insert rule inet fw4 forward iifname \"${interface}\" counter jump timecontrol_reject comment \"!fw4: Time control\" "
+	fi
+	logger -t timecontrol "Added timecontrol_reject rule to FORWARD chain (interface: ${interface})"
+
+	config_foreach add_rule macbind
+
+	echo "/etc/init.d/timecontrol restart" >"/var/etc/timecontrol.include"
+
+	/usr/bin/timecontrol_watchdog.sh loop &
+
+	logger -t timecontrol "Time Control started"
 }
 
 stop() {
-	del_rule
+	logger -t timecontrol "Stopping Time Control"
+
+	killall timecontrol_watchdog.sh >/dev/null 2>&1
+
+	if [ -z "$FW4" ]; then
+		iptables_w -t filter -D FORWARD -j TIMECONTROL_REJECT -i $interface
+		iptables_w -t filter -F TIMECONTROL_REJECT
+		iptables_w -t filter -X TIMECONTROL_REJECT
+	else
+		rule_handles=$(nft -a list chain inet fw4 forward | grep 'timecontrol_reject' | sed -n 's/.*# handle \([0-9]\+\).*/\1/p')
+		for handle in $rule_handles; do
+			nft delete rule inet fw4 forward handle $handle >/dev/null 2>&1
+		done
+		nft delete chain inet fw4 timecontrol_reject >/dev/null 2>&1
+	fi
+	logger -t timecontrol "Removed timecontrol_reject rule from FORWARD chain"
 }
