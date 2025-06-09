@@ -1,5 +1,7 @@
 #!/bin/sh
 
+FW4=$(command -v fw4 2>/dev/null)
+
 interface=$(
     . /lib/functions/network.sh
 
@@ -14,22 +16,34 @@ reset_rulePosition() {
         exit 0
     fi
 
-    FW4=$(command -v fw4 2>/dev/null)
-
     if [ -z "$FW4" ]; then
         set_iptables iptables
         set_iptables ip6tables
     else
-        first_rule=$(nft list chain inet fw4 forward | sed -n '4p' | grep -E 'timecontrol_reject')
-        if [ -z "$first_rule" ]; then
-            handles=$(nft -a list chain inet fw4 forward | grep 'timecontrol_reject' | awk '{print $NF}')
-            for handle in $handles; do
-                nft delete rule inet fw4 forward handle $handle
-            done
-            nft "insert rule inet fw4 forward iifname \"${interface}\" counter jump timecontrol_reject comment \"!fw4: Time control\" "
-            logger -t timecontrol_watchdog "Reset timecontrol_reject rule position to first (fw4)"
-        fi
+        local chain
+        for chain in forward dstnat; do
+            first_rule=$(nft list chain inet fw4 $chain | sed -n '4p' | grep -E 'timecontrol')
+            if [ -z "$first_rule" ]; then
+                handles=$(nft -a list chain inet fw4 $chain | grep 'timecontrol' | awk '{print $NF}')
+                for handle in $handles; do
+                    nft delete rule inet fw4 $chain handle $handle 2>/dev/null
+                done
+
+                local jumpChain
+                case $chain in
+                forward)
+                    jumpChain="timecontrol_forward_reject"
+                    ;;
+                dstnat)
+                    jumpChain="timecontrol_dstnat_accept"
+                    ;;
+                *) ;;
+                esac
+                nft "insert rule inet fw4 $chain iifname \"${interface}\" counter jump "$jumpChain" comment \"!fw4: Time control\" " 2>/dev/null
+            fi
+        done
     fi
+    logger -t timecontrol_watchdog "Reset timecontrol rule position to first"
 }
 
 set_iptables() {
@@ -37,15 +51,28 @@ set_iptables() {
 
     [ -z "$ipt" ] && return 1
 
-    first_rule=$($ipt -w 1 -t filter -S FORWARD | sed -n '2p')
-    echo "$first_rule" | grep -q "TIMECONTROL_REJECT"
-    if [ $? -ne 0 ]; then
-        while $ipt -w 1 -t filter -C FORWARD -j TIMECONTROL_REJECT -i $interface 2>/dev/null; do
-            $ipt -w 1 -t filter -D FORWARD -j TIMECONTROL_REJECT -i $interface >/dev/null 2>&1
-        done
-        $ipt -w 1 -t filter -I FORWARD -j TIMECONTROL_REJECT -i $interface >/dev/null 2>&1
-        logger -t timecontrol_watchdog "Reset TIMECONTROL_REJECT rule position to first (fw3: $ipt)"
-    fi
+    local table chain
+    for table in filter nat; do
+
+        case $table in
+        filter)
+            chain="FORWARD"
+            ;;
+        nat)
+            chain="PREROUTING"
+            ;;
+        *) ;;
+        esac
+
+        first_rule=$($ipt -w 1 -t $table -S $chain | sed -n '2p')
+        echo "$first_rule" | grep -q "TIMECONTROL"
+        if [ $? -ne 0 ]; then
+            while $ipt -w 1 -t $table -C $chain -j TIMECONTROL 2>/dev/null; do
+                $ipt -w 1 -t $table -D $chain -j TIMECONTROL >/dev/null 2>&1
+            done
+            $ipt -w 1 -t $table -I $chain -j TIMECONTROL >/dev/null 2>&1
+        fi
+    done
 }
 
 if [ "$1" = "loop" ]; then

@@ -16,7 +16,7 @@ end
 function status()
     local e = {}
     e.status = luci.sys.call(
-        "nft list chain inet fw4 forward | grep timecontrol_reject >/dev/null || iptables -L FORWARD | grep TIMECONTROL_REJECT >/dev/null || ip6tables -L FORWARD | grep TIMECONTROL_REJECT >/dev/null") ==
+        "nft list chain inet fw4 forward | grep timecontrol >/dev/null || iptables -L FORWARD | grep TIMECONTROL >/dev/null || ip6tables -L FORWARD | grep TIMECONTROL >/dev/null") ==
                    0
     luci.http.prepare_content("application/json")
     luci.http.write_json(e)
