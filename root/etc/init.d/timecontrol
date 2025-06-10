@@ -40,10 +40,21 @@ add_rule() {
 		timeoff=$(echo "$timerange" | awk -F '-' '{print $2}')
 
 		if [ -z "$FW4" ]; then
-			local table
+			local chain target
 			for macaddr in $macaddrlist; do
 				for table in filter nat; do
-					iptables_w -t $table -A TIMECONTROL_RULES -m mac --mac-source $macaddr -m time --kerneltz --timestart $timeon --timestop $timeoff --weekdays "$days" -j TIMECONTROL_REJECT -m comment --comment "!fw3: Time control"
+					case $table in
+					filter)
+						chain="timecontrol_forward_reject"
+						target="REJECT"
+						;;
+					nat)
+						chain="timecontrol_dstnat_accept"
+						target="ACCEPT"
+						;;
+					*) ;;
+					esac
+					iptables_w -t $table -A $chain -m mac --mac-source $macaddr -m time --kerneltz --timestart $timeon --timestop $timeoff --weekdays "$days" -j $target -m comment --comment "!fw3: Time control"
 				done
 			done
 		else
@@ -78,22 +89,23 @@ start() {
 	logger -t timecontrol "Starting Time Control"
 
 	if [ -z "$FW4" ]; then
-		local table
+		local chain jumpChain
 		for table in filter nat; do
-			iptables_w -t $table -N TIMECONTROL
-			iptables_w -t $table -F TIMECONTROL
-			iptables_w -t $table -N TIMECONTROL_RULES
-			iptables_w -t $table -F TIMECONTROL_RULES
-			iptables_w -t $table -N TIMECONTROL_REJECT
-			iptables_w -t $table -F TIMECONTROL_REJECT
+			case $table in
+			filter)
+				chain="FORWARD"
+				jumpChain="timecontrol_forward_reject"
+				;;
+			nat)
+				chain="PREROUTING"
+				jumpChain="timecontrol_dstnat_accept"
+				;;
+			*) ;;
+			esac
+			iptables_w -t $table -N $jumpChain
+			iptables_w -t $table -F $jumpChain
+			iptables_w -t $table -I $chain -i $interface -j $jumpChain
 		done
-		iptables_w -t filter -I TIMECONTROL_REJECT -j DROP
-		iptables_w -t filter -I TIMECONTROL_REJECT -p tcp -j REJECT --reject-with tcp-reset
-		iptables_w -t nat -I TIMECONTROL_REJECT -j ACCEPT
-		iptables_w -t filter -I TIMECONTROL -i $interface -j TIMECONTROL_RULES
-		iptables_w -t filter -I FORWARD -j TIMECONTROL
-		iptables_w -t nat -I TIMECONTROL -i $interface -j TIMECONTROL_RULES
-		iptables_w -t nat -I PREROUTING -j TIMECONTROL
 	else
 		nft 'add chain inet fw4 timecontrol_forward_reject'
 		nft 'add chain inet fw4 timecontrol_dstnat_accept'
@@ -114,24 +126,28 @@ start() {
 
 stop() {
 	logger -t timecontrol "Stopping Time Control"
-
+	rm -f "/var/etc/timecontrol.include" >/dev/null 2>&1
 	killall timecontrol_watchdog.sh >/dev/null 2>&1
 
 	if [ -z "$FW4" ]; then
-		local table
-		iptables_w -t filter -D FORWARD -j TIMECONTROL
-		iptables_w -t nat -D PREROUTING -j TIMECONTROL
-
+		local chain jumpChain
 		for table in filter nat; do
-			iptables_w -t $table -F TIMECONTROL
-			iptables_w -t $table -X TIMECONTROL
-			iptables_w -t $table -F TIMECONTROL_RULES
-			iptables_w -t $table -X TIMECONTROL_RULES
-			iptables_w -t $table -F TIMECONTROL_REJECT
-			iptables_w -t $table -X TIMECONTROL_REJECT
+			case $table in
+			filter)
+				chain="FORWARD"
+				jumpChain="timecontrol_forward_reject"
+				;;
+			nat)
+				chain="PREROUTING"
+				jumpChain="timecontrol_dstnat_accept"
+				;;
+			*) ;;
+			esac
+			iptables_w -t $table -D $chain -i $interface -j $jumpChain
+			iptables_w -t $table -F $jumpChain
+			iptables_w -t $table -X $jumpChain
 		done
 	else
-		local chain
 		for chain in forward dstnat; do
 			rule_handles=$(nft -a list chain inet fw4 $chain | grep 'timecontrol' | awk '{print $NF}')
 			for handle in $rule_handles; do
