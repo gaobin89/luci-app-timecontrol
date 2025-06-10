@@ -81,6 +81,7 @@ timecontrol_header() {
 }
 
 start() {
+	stop
 	config_load timecontrol
 	config_foreach timecontrol_header basic
 
@@ -111,7 +112,6 @@ start() {
 		nft 'add chain inet fw4 timecontrol_dstnat_accept'
 		nft "insert rule inet fw4 forward iifname \"${interface}\" counter jump timecontrol_forward_reject comment \"!fw4: Time control\" "
 		nft "insert rule inet fw4 dstnat iifname \"${interface}\" counter jump timecontrol_dstnat_accept comment \"!fw4: Time control\" "
-
 	fi
 	logger -t timecontrol "Initialized timecontrol chains (interface: ${interface})"
 
@@ -119,7 +119,10 @@ start() {
 
 	echo "/etc/init.d/timecontrol restart" >"/var/etc/timecontrol.include"
 
-	/usr/bin/timecontrol_watchdog.sh loop &
+	if [ ! -f /var/run/timecontrol_watchdog.pid ] || ! kill -0 $(cat /var/run/timecontrol_watchdog.pid) 2>/dev/null; then
+		/usr/bin/timecontrol_watchdog.sh loop &
+		echo $! >/var/run/timecontrol_watchdog.pid
+	fi
 
 	logger -t timecontrol "Time Control started"
 }
@@ -127,7 +130,11 @@ start() {
 stop() {
 	logger -t timecontrol "Stopping Time Control"
 	rm -f "/var/etc/timecontrol.include" >/dev/null 2>&1
-	killall timecontrol_watchdog.sh >/dev/null 2>&1
+
+	if [ -f /var/run/timecontrol_watchdog.pid ]; then
+		kill $(cat /var/run/timecontrol_watchdog.pid) 2>/dev/null
+		rm -f /var/run/timecontrol_watchdog.pid
+	fi
 
 	if [ -z "$FW4" ]; then
 		local chain jumpChain
@@ -143,13 +150,27 @@ stop() {
 				;;
 			*) ;;
 			esac
-			iptables_w -t $table -D $chain -i $interface -j $jumpChain
+			for ipt in iptables ip6tables; do
+				while $ipt -w 1 -t $table -C $chain -i $interface -j $jumpChain 2>/dev/null; do
+					$ipt -w 1 -t $table -D $chain -i $interface -j $jumpChain 2>/dev/null
+				done
+			done
 			iptables_w -t $table -F $jumpChain
 			iptables_w -t $table -X $jumpChain
 		done
 	else
 		for chain in forward dstnat; do
-			rule_handles=$(nft -a list chain inet fw4 $chain | grep 'timecontrol' | awk '{print $NF}')
+			local jumpChain
+			case $chain in
+			forward)
+				jumpChain="timecontrol_forward_reject"
+				;;
+			dstnat)
+				jumpChain="timecontrol_dstnat_accept"
+				;;
+			*) ;;
+			esac
+			rule_handles=$(nft -a list chain inet fw4 $chain | grep "$jumpChain" | awk '{print $NF}')
 			for handle in $rule_handles; do
 				nft delete rule inet fw4 $chain handle $handle >/dev/null 2>&1
 			done
