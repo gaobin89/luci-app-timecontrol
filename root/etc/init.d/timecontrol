@@ -46,7 +46,7 @@ add_rule() {
 					case $table in
 					filter)
 						chain="timecontrol_forward_reject"
-						target="REJECT"
+						target="reject"
 						;;
 					nat)
 						chain="timecontrol_dstnat_accept"
@@ -59,7 +59,7 @@ add_rule() {
 			done
 		else
 			macaddr=$(echo $macaddrlist | sed 's/ /,/g')
-			nft "add rule inet fw4 timecontrol_forward_reject ether saddr { ${macaddr} } meta hour \"${timeon}\"-\"${timeoff}\" meta day { ${days} } counter reject comment \"!fw4: Time control\""
+			nft "add rule inet fw4 timecontrol_forward_reject ether saddr { ${macaddr} } meta hour \"${timeon}\"-\"${timeoff}\" meta day { ${days} } counter jump handle_reject comment \"!fw4: Time control\""
 			nft "add rule inet fw4 timecontrol_dstnat_accept ether saddr { ${macaddr} } meta hour \"${timeon}\"-\"${timeoff}\" meta day { ${days} } counter accept comment \"!fw4: Time control\""
 		fi
 	done
