@@ -24,8 +24,9 @@ add_rule() {
 	config_get macaddrlist "$1" macaddrlist
 	config_get timerangelist "$1" timerangelist
 	config_get days "$1" days
+	config_get unblockDuration "$1" unblockDuration "0"
 
-	if [ -z "$enable" ] || [ "$enable" != "1" ] || [ -z "$macaddrlist" ] || [ -z "$timerangelist" ]; then
+	if [ -z "$enable" ] || [ "$enable" != "1" ] || [ -z "$macaddrlist" ] || [ -z "$timerangelist" ] || [ -z "$unblockDuration" ] || [ $unblockDuration -gt 0 ]; then
 		return 0
 	fi
 
@@ -63,7 +64,7 @@ add_rule() {
 			nft "add rule inet fw4 timecontrol_dstnat_accept ether saddr { ${macaddr} } meta hour \"${timeon}\"-\"${timeoff}\" meta day { ${days} } counter accept comment \"!fw4: Time control\""
 		fi
 	done
-	logger -t timecontrol "Added timecontrol rules (MAC: ${macaddrlist}, Time: ${timerangelist}, Days: ${days})"
+	logger -t timecontrol "Added timecontrol rule (MAC: ${macaddrlist}, Time: ${timerangelist}, Days: ${days})"
 
 	if [ -n "$(command -v conntrack 2>/dev/null)" ]; then
 		regex=$(echo ${macaddrlist} | sed 's/ /|/g')
@@ -120,7 +121,7 @@ start() {
 	echo "/etc/init.d/timecontrol restart" >"/var/etc/timecontrol.include"
 
 	if [ ! -f /var/run/timecontrol_watchdog.pid ] || ! kill -0 $(cat /var/run/timecontrol_watchdog.pid) 2>/dev/null; then
-		/usr/bin/timecontrol_watchdog.sh loop &
+		/usr/bin/timecontrol_watchdog.sh &
 		echo $! >/var/run/timecontrol_watchdog.pid
 	fi
 

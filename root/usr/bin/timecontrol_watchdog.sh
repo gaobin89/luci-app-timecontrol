@@ -1,5 +1,9 @@
 #!/bin/sh
 
+. $IPKG_INSTROOT/lib/functions.sh
+
+TIMECONTROL_ENABLE=0
+IsUpdate=0
 FW4=$(command -v fw4 2>/dev/null)
 
 interface=$(
@@ -81,11 +85,61 @@ set_iptables() {
     done
 }
 
-if [ "$1" = "loop" ]; then
-    while true; do
-        reset_rulePosition
+timecontrol_header() {
+	config_get TIMECONTROL_ENABLE "$1" enable "0"
+}
+
+update_temporaryUnblockRule() {
+    local enable unblockDuration
+
+	config_get enable "$1" enable "0"
+    config_get macaddrlist "$1" macaddrlist
+	config_get timerangelist "$1" timerangelist
+	config_get days "$1" days
+    config_get unblockDuration "$1" unblockDuration "0"
+
+    if [ -z "$enable" ] || [ "$enable" != "1" ] || [ -z "$unblockDuration" ] || [ $unblockDuration -eq 0 ]; then
+		return 0
+	fi
+
+    if [ -z "$days" ]; then
+		days="Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday"
+	else
+		days=$(echo "$days" | sed 's/ /,/g')
+	fi
+
+    unblockDuration=$(expr $unblockDuration - 1)
+    uci set timecontrol.$1.unblockDuration=$unblockDuration
+    uci commit timecontrol
+
+    logger -t timecontrol_watchdog "Update timecontrol rule's unblock duration to $unblockDuration (MAC: ${macaddrlist}, Time: ${timerangelist}, Days: ${days}) "
+
+    if [ $unblockDuration -eq 0 ]; then
+        IsUpdate=1
+    fi
+
+}
+
+update_rules() {
+    IsUpdate=0
+    config_load timecontrol
+	config_foreach timecontrol_header basic
+
+    if [ "$TIMECONTROL_ENABLE" = "1" ]; then
+        config_foreach update_temporaryUnblockRule macbind
+    fi
+
+    if [ $IsUpdate -eq 1 ]; then
+        /etc/init.d/timecontrol restart >/dev/null 2>&1
+    fi
+}
+
+start() {
+     while true; do
         sleep 60
+        update_rules
+        reset_rulePosition
     done
-else
-    reset_rulePosition
-fi
+}
+
+start

@@ -109,6 +109,30 @@ function e.validate(self, value, section)
     return value
 end
 
+e = t:option(Value, "unblockDuration", translate("Temporary Unblock") .. " " .. translate("(minutes)"))
+e.optional = false
+e.modalonly = true
+e.datatype = "uinteger"
+e.default = "0"
+e.rmempty = true
+e:value("0", "0" .. " " .. translate("(minutes)"))
+e:value("5", "5" .. " " .. translate("(minutes)"))
+e:value("10", "10" .. " " .. translate("(minutes)"))
+e:value("15", "15" .. " " .. translate("(minutes)"))
+e:value("30", "30" .. " " .. translate("(minutes)"))
+e:value("45", "45" .. " " .. translate("(minutes)"))
+e:value("60", "60" .. " " .. translate("(minutes)"))
+e:value("90", "90" .. " " .. translate("(minutes)"))
+e:value("120", "120" .. " " .. translate("(minutes)"))
+
+function e.validate(self, value, section)
+    local v = tonumber(value)
+    if v and v >= 0 and v <= 720 then
+        return value
+    end
+    return nil, translate("Allowed values: 0 or 5-120 minutes")
+end
+
 e = t:option(MultiValue, "days", translate("Days of Week"))
 e.rmempty = true
 e:value("Sunday", translate("Sunday"))
