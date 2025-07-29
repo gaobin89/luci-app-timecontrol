@@ -61,8 +61,8 @@ msgstr "用户可以通过 MAC 地址限制互联网使用时间，支持 iptabl
 msgid "Temporary Unblock"
 msgstr "临时解禁"
 
-msgid "Allowed values: 0 or 5-120 minutes"
-msgstr "允许值：0 或 5-720 分钟"
+msgid "Allowed values: 0 ~ 720 minutes"
+msgstr "允许值：0 ~ 720 分钟"
 
 msgid "(minutes)"
 msgstr "(分钟)"

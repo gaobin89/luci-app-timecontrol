@@ -130,7 +130,7 @@ function e.validate(self, value, section)
     if v and v >= 0 and v <= 720 then
         return value
     end
-    return nil, translate("Allowed values: 0 or 5-120 minutes")
+    return nil, translate("Allowed values: 0 ~ 720 minutes")
 end
 
 e = t:option(MultiValue, "days", translate("Days of Week"))
