@@ -4,6 +4,7 @@ START=99
 
 TIMECONTROL_ENABLE=0
 FW4=$(command -v fw4 2>/dev/null)
+FW3_IP6=$(command -v ip6tables 2>/dev/null)
 
 interface=$(
 	. /lib/functions/network.sh
@@ -14,7 +15,7 @@ interface=$(
 
 iptables_w() {
 	iptables -w 1 "$@" >/dev/null 2>&1
-	ip6tables -w 1 "$@" >/dev/null 2>&1
+	[ -n "$FW3_IP6" ] && ip6tables -w 1 "$@" >/dev/null 2>&1
 }
 
 add_rule() {
