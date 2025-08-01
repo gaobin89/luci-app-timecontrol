@@ -14,9 +14,9 @@ interface=$(
 )
 
 reset_rulePosition() {
-    enable=$(uci get timecontrol.@basic[0].enable 2>/dev/null)
+    config_foreach timecontrol_header basic
 
-    if [ -z "$enable" ] || [ "$enable" != "1" ]; then
+    if [ -z "$TIMECONTROL_ENABLE" ] || [ "$TIMECONTROL_ENABLE" != "1" ]; then
         exit 0
     fi
 
@@ -90,29 +90,29 @@ timecontrol_header() {
 }
 
 update_temporaryUnblockRule() {
-    local enable unblockDuration
+    local enable macaddrlist timerangelist weekdays
 
     config_get enable "$1" enable "0"
     config_get macaddrlist "$1" macaddrlist
     config_get timerangelist "$1" timerangelist
-    config_get days "$1" days
+    config_get weekdays "$1" weekdays
     config_get unblockDuration "$1" unblockDuration "0"
 
     if [ -z "$enable" ] || [ "$enable" != "1" ] || [ -z "$unblockDuration" ] || [ $unblockDuration -eq 0 ]; then
         return 0
     fi
 
-    if [ -z "$days" ]; then
-        days="Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday"
+    if [ -z "$weekdays" ]; then
+        weekdays="Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday"
     else
-        days=$(echo "$days" | sed 's/ /,/g')
+        weekdays=$(echo "$weekdays" | sed 's/ /,/g')
     fi
 
     unblockDuration=$(expr $unblockDuration - 1)
     uci set timecontrol.$1.unblockDuration=$unblockDuration
     uci commit timecontrol
 
-    logger -t timecontrol_watchdog "Update timecontrol rule's unblock duration to $unblockDuration (MAC: ${macaddrlist}, Time: ${timerangelist}, Days: ${days}) "
+    logger -t timecontrol_watchdog "Update timecontrol rule's unblock duration to $unblockDuration (MAC: ${macaddrlist}, Time: ${timerangelist}, Days: ${weekdays}) "
 
     if [ $unblockDuration -eq 0 ]; then
         IsUpdate=1
@@ -126,7 +126,7 @@ update_rules() {
     config_foreach timecontrol_header basic
 
     if [ "$TIMECONTROL_ENABLE" = "1" ]; then
-        config_foreach update_temporaryUnblockRule macbind
+        config_foreach update_temporaryUnblockRule rule
     fi
 
     if [ $IsUpdate -eq 1 ]; then
