@@ -1,20 +1,36 @@
+msgid ""
+msgstr ""
+
+"Content-Type: text/plain; charset=UTF-8\n"
+"Last-Translator: Automatically generated\n"
+"Language-Team: none\n"
+"Language: zh_Hans\n"
+"MIME-Version: 1.0\n"
+"Content-Transfer-Encoding: 8bit\n"
+
 msgid "Control"
 msgstr "管控"
 
 msgid "Internet Time Control"
 msgstr "上网时间控制"
 
-msgid "Status"
-msgstr "状态"
-
 msgid "Enabled"
 msgstr "启用"
 
-msgid "Client Settings"
-msgstr "客户端设置"
+msgid "Client - Control Rules"
+msgstr "客户端 - 管控规则"
 
-msgid "No Internet Time Range"
+msgid "Control Rules"
+msgstr "管控规则"
+
+msgid "Time Ranges"
 msgstr "禁网时段"
+
+msgid "Time Restrictions"
+msgstr "时间限制"
+
+msgid "AnyDay"
+msgstr "每天"
 
 msgid "Monday"
 msgstr "星期一"
@@ -37,20 +53,14 @@ msgstr "星期六"
 msgid "Sunday"
 msgstr "星期日"
 
-msgid "Days of Week"
+msgid "Week Days"
 msgstr "星期"
 
-msgid "RUNNING"
-msgstr "运行中"
+msgid "Enabled"
+msgstr "已开启"
 
-msgid "NOT RUNNING"
-msgstr "未运行"
-
-msgid "Please select at least one MAC address"
-msgstr "请至少选择一个 MAC 地址"
-
-msgid "Invalid MAC address: "
-msgstr "MAC地址无效: "
+msgid "Disabled"
+msgstr "已禁用"
 
 msgid "Invalid time range: "
 msgstr "时段无效: "
@@ -61,8 +71,20 @@ msgstr "用户可以通过 MAC 地址限制互联网使用时间，支持 iptabl
 msgid "Temporary Unblock"
 msgstr "临时解禁"
 
-msgid "Allowed values: 0 ~ 720 minutes"
-msgstr "允许值：0 ~ 720 分钟"
-
 msgid "(minutes)"
 msgstr "(分钟)"
+
+msgid "Unnamed rule"
+msgstr "未命名规则"
+
+msgid "Client MAC"
+msgstr "客户端 MAC"
+
+msgid "AllClients"
+msgstr "所有客户端"
+
+msgid "AnyTime"
+msgstr "所有时段"
+
+msgid "Collecting data ..."
+msgstr "收集数据中 ..."

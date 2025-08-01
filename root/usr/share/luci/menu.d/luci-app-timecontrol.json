@@ -1,0 +1,26 @@
+{
+	"admin/control": {
+		"title": "Control",
+		"order": 45,
+		"action": {
+			"type": "firstchild",
+			"recurse": true
+		}
+	},
+	"admin/control/timecontrol": {
+		"title": "Internet Time Control",
+		"order": 90,
+		"action": {
+			"type": "view",
+			"path": "timecontrol/rules"
+		},
+		"depends": {
+			"acl": [
+				"luci-app-timecontrol"
+			],
+			"uci": {
+				"timecontrol": true
+			}
+		}
+	}
+}
