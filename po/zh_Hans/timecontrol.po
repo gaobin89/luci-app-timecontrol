@@ -17,9 +17,6 @@ msgstr "上网时间控制"
 msgid "Enabled"
 msgstr "启用"
 
-msgid "Client - Control Rules"
-msgstr "客户端 - 管控规则"
-
 msgid "Control Rules"
 msgstr "管控规则"
 
