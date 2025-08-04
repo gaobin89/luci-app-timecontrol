@@ -190,7 +190,9 @@ return view.extend({
 			m, s, o;
 
 		m = new form.Map('timecontrol', _('Internet Time Control'),
-			_('Users can limit Internet usage time by MAC address, support iptables/nftables IPv4/IPv6'));
+			_('Users can limit Internet usage time by MAC address, support iptables/nftables IPv4/IPv6') +
+			'<br/>' + _('Suggestion and feedback') + ": " + _("<a href='https://github.com/gaobin89/luci-app-timecontrol.git' target='_blank'>GitHub @gaobin89/luci-app-timecontrol</a>") +
+			'<br/>');
 
 		s = m.section(form.TypedSection);
 		s.anonymous = true;

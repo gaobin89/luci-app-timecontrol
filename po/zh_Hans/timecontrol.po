@@ -91,3 +91,6 @@ msgstr "收集数据中 ..."
 
 msgid "Global Settings"
 msgstr "全局设备"
+
+msgid "Suggestion and feedback"
+msgstr "建议与反馈"
