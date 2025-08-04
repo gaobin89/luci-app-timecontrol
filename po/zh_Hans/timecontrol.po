@@ -62,8 +62,8 @@ msgstr "已开启"
 msgid "Disabled"
 msgstr "已禁用"
 
-msgid "Invalid time range: "
-msgstr "时段无效: "
+msgid "Invalid time range"
+msgstr "时段无效"
 
 msgid "Users can limit Internet usage time by MAC address, support iptables/nftables IPv4/IPv6"
 msgstr "用户可以通过 MAC 地址限制互联网使用时间，支持 iptables/nftables IPv4/IPv6"
@@ -88,3 +88,6 @@ msgstr "所有时段"
 
 msgid "Collecting data ..."
 msgstr "收集数据中 ..."
+
+msgid "Global Settings"
+msgstr "全局设备"

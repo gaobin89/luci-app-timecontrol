@@ -189,7 +189,7 @@ return view.extend({
 		var hosts = data[0],
 			m, s, o;
 
-		m = new form.Map('timecontrol', _('Client - Control Rules'),
+		m = new form.Map('timecontrol', _('Internet Time Control'),
 			_('Users can limit Internet usage time by MAC address, support iptables/nftables IPv4/IPv6'));
 
 		s = m.section(form.TypedSection);
@@ -198,6 +198,7 @@ return view.extend({
 			poll.add(function () {
 				return L.resolveDefault(getFirewallChainStatus()).then(function (res) {
 					var view = document.getElementById("firewall_status");
+					console.log('firewall_status:', res);
 					view.innerHTML = renderStatus(res);
 				});
 			});
@@ -207,7 +208,7 @@ return view.extend({
 			]);
 		}
 
-		s = m.section(form.TypedSection, 'basic');
+		s = m.section(form.TypedSection, 'basic', _('Global Settings'));
 		s.anonymous = true;
 		s.addremove = false;
 		o = s.option(form.Flag, 'enable', _('Enable'));
@@ -296,7 +297,46 @@ return view.extend({
 		o.modalonly = true;
 		//o.default = '00:00:00-23:59:59';
 		o.placeholder = 'hh:mm:ss-hh:mm:ss';
+		o.validate = function (section_id, value) {
+			function isValidTimeRange(str) {
+				const timeRegex = /^(\d\d):(\d\d):(\d\d)$/;
+				const [startTime, endTime] = str.split('-');
 
+				if (!startTime || !endTime) return false;
+
+				const validateTime = (time) => {
+					const match = time.match(timeRegex);
+					if (!match) return null;
+					const [, h, m, s] = match;
+					const hours = parseInt(h, 10);
+					const minutes = parseInt(m, 10);
+					const seconds = parseInt(s, 10);
+					if (hours > 23 || minutes > 59 || seconds > 59) return null;
+					return hours * 3600 + minutes * 60 + seconds;
+				};
+
+				const startSec = validateTime(startTime);
+				const endSec = validateTime(endTime);
+
+				return startSec !== null && endSec !== null && startSec < endSec;
+			}
+
+			if (!value) return true;
+
+			if (Array.isArray(value)) {
+				for (const v of value) {
+					if (!isValidTimeRange(v)) {
+						return _('Invalid time range') + ': ' + v;
+					}
+				}
+			} else if (typeof value === 'string') {
+				if (!isValidTimeRange(value)) {
+					return _('Invalid time range') + ': ' + value;
+				}
+			}
+
+			return true;
+		}
 		return m.render();
 	}
 });
