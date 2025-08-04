@@ -19,8 +19,9 @@ function rule_macaddrlist_txt(s, hosts) {
 	if (!result || (typeof result === 'string' && result.trim() === '')) {
 		result = _('AllClients');
 	}
-	return fwtool.fmt(_('%{macaddrlist#%{next?, }<var>%{item.ival}</var>}'), {
-		macaddrlist: fwtool.map_invert(result).map(function (v) { return Object.assign(v, { hint: hosts[v.val] }) })
+	var items = fwtool.map_invert(result);
+	return fwtool.fmt(_('%{macaddrlist}'), {
+		macaddrlist: formatListWithLineBreaks(items, 2)
 	});
 }
 
@@ -29,8 +30,9 @@ function rule_timerangelist_txt(s) {
 	if (!result || (typeof result === 'string' && result.trim() === '')) {
 		result = _('AnyTime');
 	}
-	return fwtool.fmt(_('%{timerangelist#%{next?, }<var>%{item.ival}</var>}'), {
-		timerangelist: fwtool.map_invert(result)
+	var items = fwtool.map_invert(result);
+	return fwtool.fmt(_('%{timerangelist}'), {
+		timerangelist: formatListWithLineBreaks(items, 2)
 	});
 }
 
@@ -70,9 +72,27 @@ function rule_weekdays_txt(s) {
 	//	console.log('result:', result);
 	//}
 
-	return fwtool.fmt(_('%{weekdays#%{next?, }<var>%{item.ival}</var>}'), {
-		weekdays: fwtool.map_invert(result)
+	var items = fwtool.map_invert(result);
+	return fwtool.fmt(_('%{weekdays}'), {
+		weekdays: formatListWithLineBreaks(items, 3)
 	});
+}
+
+function formatListWithLineBreaks(items, itemsPerLine = 2) {
+	if (items.length <= itemsPerLine) {
+		return items.map(item => `<var>${item.ival}</var>`).join(', ');
+	}
+
+	return items.reduce((acc, item, index) => {
+		acc += `<var>${item.ival}</var>`;
+		const isLastItem = index === items.length - 1;
+		const isLineEnd = (index + 1) % itemsPerLine === 0;
+
+		if (!isLastItem) {
+			acc += isLineEnd ? ', <br>' : ', ';
+		}
+		return acc;
+	}, '');
 }
 
 var callExec = rpc.declare({
