@@ -19,24 +19,21 @@ iptables_w() {
 }
 
 add_rule() {
-	local enable macaddrlist timerangelist weekdays
+	local enable macaddrlist timerangelist weekdays unblockDuration
 
-	config_get enable "$1" enable "0"
+	config_get enable "$1" enable 0
 	config_get macaddrlist "$1" macaddrlist
 	config_get timerangelist "$1" timerangelist "00:00:00-23:59:59"
 	config_get weekdays "$1" weekdays "Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday"
-	config_get unblockDuration "$1" unblockDuration "0"
+	config_get unblockDuration "$1" unblockDuration 0
 
-	if [ -z "$enable" ] || [ "$enable" != "1" ] || [ $unblockDuration -gt 0 ]; then
+	if [ $enable -ne 1 ] || [ $unblockDuration -gt 0 ]; then
 		return 0
 	fi
-	if [ -z "$timerangelist" ]; then
-		timerangelist= "00:00:00-23:59:59"
+	if [ -z "${timerangelist}" ]; then
+		timerangelist="00:00:00-23:59:59"
 	fi
-	if [ -z "$unblockDuration" ]; then
-		unblockDuration=0
-	fi
-	if [ -z "$weekdays" ]; then
+	if [ -z "${weekdays}" ]; then
 		weekdays="Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday"
 	else
 		weekdays=$(echo "$weekdays" | sed 's/ /,/g')
@@ -48,28 +45,30 @@ add_rule() {
 
 		if [ -z "$FW4" ]; then
 			local chain target
-			for macaddr in $macaddrlist; do
-				for table in filter nat; do
-					case $table in
-					filter)
-						chain="timecontrol_forward_reject"
-						target="reject"
-						;;
-					nat)
-						chain="timecontrol_dstnat_accept"
-						target="ACCEPT"
-						;;
-					*) ;;
-					esac
-					if [ -z "$macaddrlist" ]; then
-						iptables_w -t $table -A $chain -m time --kerneltz --timestart $timeon --timestop $timeoff --weekdays "$weekdays" -j $target -m comment --comment "!fw3: Time control"
-					else
+
+			for table in filter nat; do
+				case $table in
+				filter)
+					chain="timecontrol_forward_reject"
+					target="reject"
+					;;
+				nat)
+					chain="timecontrol_dstnat_accept"
+					target="ACCEPT"
+					;;
+				*) ;;
+				esac
+
+				if [ -z "${macaddrlist}" ]; then
+					iptables_w -t $table -A $chain -m time --kerneltz --timestart $timeon --timestop $timeoff --weekdays "$weekdays" -j $target -m comment --comment "!fw3: Time control"
+				else
+					for macaddr in $macaddrlist; do
 						iptables_w -t $table -A $chain -m mac --mac-source $macaddr -m time --kerneltz --timestart $timeon --timestop $timeoff --weekdays "$weekdays" -j $target -m comment --comment "!fw3: Time control"
-					fi
-				done
+					done
+				fi
 			done
 		else
-			if [ -z "$macaddrlist" ]; then
+			if [ -z "${macaddrlist}" ]; then
 				nft "add rule inet fw4 timecontrol_forward_reject meta hour \"${timeon}\"-\"${timeoff}\" meta day { ${weekdays} } counter jump handle_reject comment \"!fw4: Time control\""
 				nft "add rule inet fw4 timecontrol_dstnat_accept meta hour \"${timeon}\"-\"${timeoff}\" meta day { ${weekdays} } counter accept comment \"!fw4: Time control\""
 			else
@@ -93,7 +92,7 @@ add_rule() {
 }
 
 timecontrol_header() {
-	config_get TIMECONTROL_ENABLE "$1" enable "0"
+	config_get TIMECONTROL_ENABLE "$1" enable 0
 }
 
 start() {
@@ -101,7 +100,7 @@ start() {
 	config_load timecontrol
 	config_foreach timecontrol_header basic
 
-	[ "$TIMECONTROL_ENABLE" != "1" ] && return 0
+	[ $TIMECONTROL_ENABLE -ne 1 ] && return 0
 
 	logger -t timecontrol "Starting Time Control"
 

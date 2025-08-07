@@ -16,29 +16,29 @@ function rule_macaddrlist_txt(s, hosts) {
 	} else if (Array.isArray(result)) {
 		result = result.map(item => typeof item === 'string' ? item.toUpperCase() : item);
 	}
-	if (!result || (typeof result === 'string' && result.trim() === '')) {
+	if (result === null || result === undefined || (typeof result === 'string' && result.trim() === '')) {
 		result = _('AllClients');
 	}
 	var items = fwtool.map_invert(result);
 	return fwtool.fmt(_('%{macaddrlist}'), {
-		macaddrlist: formatListWithLineBreaks(items, 2)
+		macaddrlist: formatListWithLineBreaks(items, 1)
 	});
 }
 
 function rule_timerangelist_txt(s) {
 	var result = uci.get('timecontrol', s, 'timerangelist');
-	if (!result || (typeof result === 'string' && result.trim() === '')) {
+	if (result === null || result === undefined || (typeof result === 'string' && result.trim() === '')) {
 		result = _('AnyTime');
 	}
 	var items = fwtool.map_invert(result);
 	return fwtool.fmt(_('%{timerangelist}'), {
-		timerangelist: formatListWithLineBreaks(items, 2)
+		timerangelist: formatListWithLineBreaks(items, 1)
 	});
 }
 
 function rule_unblockDuration_txt(s) {
 	var result = uci.get('timecontrol', s, 'unblockDuration');
-	if (!result || (typeof result === 'string' && result.trim() === '')) {
+	if (result === null || result === undefined || (typeof result === 'string' && result.trim() === '')) {
 		result = '0';
 	}
 	return fwtool.fmt(_('%{unblockDuration#%{next? }<var>%{item.ival}</var>}'), {
@@ -58,7 +58,7 @@ function rule_weekdays_txt(s) {
 		'Saturday': _('Saturday')
 	};
 
-	if (!result || (typeof result === 'string' && result.trim() === '')) {
+	if (result === null || result === undefined || (typeof result === 'string' && result.trim() === '')) {
 		result = _('AnyDay');
 	} else if (typeof result === 'string') {
 		const days = result.trim().split(/\s+/);
@@ -93,6 +93,16 @@ function formatListWithLineBreaks(items, itemsPerLine = 2) {
 		}
 		return acc;
 	}, '');
+}
+
+function getUciSection(option, config = 'timecontrol') {
+	const sections = uci.sections(config, option);
+	return sections.length > 0 ? sections[0]['.name'] : null;
+}
+
+function getUciSections(option, config = 'timecontrol') {
+	const sections = uci.sections(config, option);
+	return Array.isArray(sections) ? sections : [];
 }
 
 var callExec = rpc.declare({
@@ -220,7 +230,6 @@ return view.extend({
 			poll.add(function () {
 				return L.resolveDefault(getFirewallChainStatus()).then(function (res) {
 					var view = document.getElementById("firewall_status");
-					console.log('firewall_status:', res);
 					view.innerHTML = renderStatus(res);
 				});
 			});
@@ -232,10 +241,51 @@ return view.extend({
 
 		s = m.section(form.TypedSection, 'basic', _('Global Settings'));
 		s.anonymous = true;
-		s.addremove = false;
+
 		o = s.option(form.Flag, 'enable', _('Enable'));
 		o.default = o.disabled;
 		o.rmempty = false;
+		o.handleValueChange = function (section_id, state, ev) {
+			this.map.save(null, true);
+		}
+
+		o = s.option(form.Value, '', _('Temporary Unblock'), _('Set unblock duration for all rules'));
+		o.modalonly = true;
+		//o.depends('enable', '1');
+		o.datatype = 'range(1,720)';
+
+		for (var i = 1; i <= 5; i++) {
+			o.value(i * 5, i * 5 + ' ' + _('(minutes)'));
+		}
+		for (var i = 1; i <= 4; i++) {
+			o.value(i * 30, i * 30 + ' ' + _('(minutes)'));
+		}
+		for (var i = 3; i <= 12; i++) {
+			o.value(i * 60, i * 60 + ' ' + _('(minutes)'));
+		}
+
+		var basic_currentValue = null;
+		o.validate = function (section_id, value) {
+			var flag = this.super('validate', [section_id, value]);
+			basic_currentValue = flag ? value : null;
+			return flag;
+		}
+
+		o.handleValueChange = function (section_id, state, ev) {
+			var sections = getUciSections('rule');
+			sections.forEach(element => {
+				var sectionId = element['.name'];
+				uci.set('timecontrol', sectionId, 'unblockDuration', basic_currentValue);
+				uci.save('timecontrol');
+			});
+			this.map.save(null, true);
+			if (basic_currentValue == null || basic_currentValue.trim() === '' || this.vallist.indexOf(basic_currentValue + ' ' + _('(minutes)')) > -1) {
+				this.map.reset();
+			}
+			else {
+				location.reload();
+			}
+		}
 
 		s = m.section(form.GridSection, 'rule', _('Control Rules'));
 		s.addremove = true;
@@ -250,14 +300,14 @@ return view.extend({
 			return uci.get('timecontrol', section_id, 'name') || _('Unnamed rule');
 		};
 
-		o = s.taboption('general', form.Value, 'name', _('Name'));
-		o.placeholder = _('Unnamed rule');
-		o.modalonly = true;
-
 		o = s.option(form.Flag, 'enable', _('Enable'));
 		o.modalonly = false;
 		o.default = o.disabled;
 		o.editable = true;
+		o.handleValueChange = function (section_id, state, ev) {
+			//ui.changes.apply(true);
+			return this.map.save(null, true);
+		};
 
 		o = s.option(form.ListValue, 'unblockDuration', _('Temporary Unblock'));
 		o.modalonly = false;
@@ -283,21 +333,53 @@ return view.extend({
 			return rule_weekdays_txt(s);
 		};
 
-		fwtool.addMACOption(s, 'general', 'macaddrlist', _('Client MAC'), null, hosts);
-
-		o = s.taboption('timed', form.Value, 'unblockDuration', _('Temporary Unblock'));
+		o = s.taboption('general', form.Flag, 'enable', _('Enable'));
 		o.modalonly = true;
-		o.default = '0';
-		o.datatype = 'range(0,720)';
-		o.value('0', '0' + ' ' + _('(minutes)'));
-		o.value('5', '5' + ' ' + _('(minutes)'));
-		o.value('10', '10' + ' ' + _('(minutes)'));
-		o.value('15', '15' + ' ' + _('(minutes)'));
-		o.value('30', '30' + ' ' + _('(minutes)'));
-		o.value('45', '45' + ' ' + _('(minutes)'));
-		o.value('60', '60' + ' ' + _('(minutes)'));
-		o.value('90', '90' + ' ' + _('(minutes)'));
-		o.value('120', '120' + ' ' + _('(minutes)'));
+		o.default = o.disabled;
+		o.editable = true;
+
+		o = s.taboption('general', form.Value, 'name', _('Name'));
+		o.placeholder = _('Unnamed rule');
+		o.modalonly = true;
+
+		o = s.taboption('general', form.Value, 'unblockDuration', _('Temporary Unblock'));
+		o.modalonly = true;
+		//o.depends('enable', '1');
+		o.datatype = 'range(1,720)';
+
+		for (var i = 1; i <= 5; i++) {
+			o.value(i * 5, i * 5 + ' ' + _('(minutes)'));
+		}
+		for (var i = 1; i <= 4; i++) {
+			o.value(i * 30, i * 30 + ' ' + _('(minutes)'));
+		}
+		for (var i = 3; i <= 12; i++) {
+			o.value(i * 60, i * 60 + ' ' + _('(minutes)'));
+		}
+
+		var rule_sectionId = getUciSection('rule');
+		if (rule_sectionId) {
+			var unblockDuration = uci.get('timecontrol', rule_sectionId, 'unblockDuration');
+			if (o.keylist.indexOf(unblockDuration) < 0 && unblockDuration != null) {
+				o.value(unblockDuration, unblockDuration + ' ' + _('(minutes)'));
+			}
+		}
+		var rule_currentValue = null;
+		o.validate = function (section_id, value) {
+			var flag = this.super('validate', [section_id, value]);
+			rule_currentValue = flag ? value : null;
+			return flag;
+		}
+
+		o.handleValueChange = function (section_id, state, ev) {
+			if (this.keylist.indexOf(rule_currentValue) < 0 && rule_currentValue != null) {
+				this.value(rule_currentValue, rule_currentValue + ' ' + _('(minutes)'));
+				this.map.reset();
+				this.default = rule_currentValue;
+			}
+		}
+
+		fwtool.addMACOption(s, 'general', 'macaddrlist', _('Client MAC'), null, hosts);
 
 		o = s.taboption('timed', form.MultiValue, 'weekdays', _('Week Days'));
 		o.modalonly = true;
@@ -315,7 +397,7 @@ return view.extend({
 			return this.super('write', [section_id, L.toArray(value).join(' ')]);
 		};
 
-		o = s.taboption('timed', form.DynamicList, 'timerangelist', _('Time Ranges'));
+		o = s.taboption('timed', form.DynamicList, 'timerangelist', _('Time Ranges'), '00:00:00-23:59:59');
 		o.modalonly = true;
 		//o.default = '00:00:00-23:59:59';
 		o.placeholder = 'hh:mm:ss-hh:mm:ss';

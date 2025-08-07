@@ -14,9 +14,7 @@ interface=$(
 )
 
 reset_rulePosition() {
-    config_foreach timecontrol_header basic
-
-    if [ -z "$TIMECONTROL_ENABLE" ] || [ "$TIMECONTROL_ENABLE" != "1" ]; then
+    if [ $TIMECONTROL_ENABLE -ne 1 ]; then
         exit 0
     fi
 
@@ -86,47 +84,48 @@ set_iptables() {
 }
 
 timecontrol_header() {
-    config_get TIMECONTROL_ENABLE "$1" enable "0"
+    config_get TIMECONTROL_ENABLE "$1" enable 0
 }
 
-update_temporaryUnblockRule() {
-    local enable macaddrlist timerangelist weekdays
+update_ruleUnblockDuration() {
+    local enable macaddrlist timerangelist weekdays unblockDuration
 
-    config_get enable "$1" enable "0"
+    config_get enable "$1" enable 0
     config_get macaddrlist "$1" macaddrlist
-    config_get timerangelist "$1" timerangelist
-    config_get weekdays "$1" weekdays
-    config_get unblockDuration "$1" unblockDuration "0"
+    config_get timerangelist "$1" timerangelist "00:00:00-23:59:59"
+    config_get weekdays "$1" weekdays "Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday"
+    config_get unblockDuration "$1" unblockDuration 0
 
-    if [ -z "$enable" ] || [ "$enable" != "1" ] || [ -z "$unblockDuration" ] || [ $unblockDuration -eq 0 ]; then
+    if [ $unblockDuration -le 0 ]; then
         return 0
     fi
 
-    if [ -z "$weekdays" ]; then
+    if [ -z "${timerangelist}" ]; then
+        timerangelist="00:00:00-23:59:59"
+    fi
+    if [ -z "${weekdays}" ]; then
         weekdays="Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday"
     else
         weekdays=$(echo "$weekdays" | sed 's/ /,/g')
     fi
 
     unblockDuration=$(expr $unblockDuration - 1)
-    uci set timecontrol.$1.unblockDuration=$unblockDuration
-    uci commit timecontrol
-
-    logger -t timecontrol_watchdog "Update timecontrol rule's unblock duration to $unblockDuration (MAC: ${macaddrlist}, Time: ${timerangelist}, Days: ${weekdays}) "
-
-    if [ $unblockDuration -eq 0 ]; then
+    if [ $unblockDuration -gt 0 ]; then
+        uci set timecontrol.$1.unblockDuration=$unblockDuration
+        logger -t timecontrol_watchdog "Update timecontrol rule's unblock duration to $unblockDuration (MAC: ${macaddrlist}, Time: ${timerangelist}, Days: ${weekdays}) "
+    else
         IsUpdate=1
+        uci delete timecontrol.$1.unblockDuration
     fi
+    uci commit timecontrol
 
 }
 
-update_rules() {
+update_unblockDuration() {
     IsUpdate=0
-    config_load timecontrol
-    config_foreach timecontrol_header basic
 
-    if [ "$TIMECONTROL_ENABLE" = "1" ]; then
-        config_foreach update_temporaryUnblockRule rule
+    if [ $TIMECONTROL_ENABLE -eq 1 ]; then
+        config_foreach update_ruleUnblockDuration rule
     fi
 
     if [ $IsUpdate -eq 1 ]; then
@@ -137,7 +136,9 @@ update_rules() {
 start() {
     while true; do
         sleep 60
-        update_rules
+        config_load timecontrol
+        config_foreach timecontrol_header basic
+        update_unblockDuration
         reset_rulePosition
     done
 }
