@@ -252,9 +252,9 @@ return view.extend({
 		o = s.option(form.Value, '', _('Temporary Unblock'), _('Set unblock duration for all rules'));
 		o.modalonly = true;
 		//o.depends('enable', '1');
-		o.datatype = 'range(1,720)';
+		o.datatype = 'range(0,720)';
 
-		for (var i = 1; i <= 5; i++) {
+		for (var i = 0; i <= 5; i++) {
 			o.value(i * 5, i * 5 + ' ' + _('(minutes)'));
 		}
 		for (var i = 1; i <= 4; i++) {
@@ -272,14 +272,18 @@ return view.extend({
 		}
 
 		o.handleValueChange = function (section_id, state, ev) {
+			if (basic_currentValue === null || basic_currentValue.trim() === '') {
+				return;
+			}
+			var value = basic_currentValue.trim() === '0' ? null : basic_currentValue;
 			var sections = getUciSections('rule');
 			sections.forEach(element => {
 				var sectionId = element['.name'];
-				uci.set('timecontrol', sectionId, 'unblockDuration', basic_currentValue);
+				uci.set('timecontrol', sectionId, 'unblockDuration', value);
 				uci.save('timecontrol');
 			});
 			this.map.save(null, true);
-			if (basic_currentValue == null || basic_currentValue.trim() === '' || this.vallist.indexOf(basic_currentValue + ' ' + _('(minutes)')) > -1) {
+			if (this.vallist.indexOf(basic_currentValue + ' ' + _('(minutes)')) > -1) {
 				this.map.reset();
 			}
 			else {
@@ -360,7 +364,7 @@ return view.extend({
 		var rule_sectionId = getUciSection('rule');
 		if (rule_sectionId) {
 			var unblockDuration = uci.get('timecontrol', rule_sectionId, 'unblockDuration');
-			if (o.keylist.indexOf(unblockDuration) < 0 && unblockDuration != null) {
+			if (o.keylist.indexOf(unblockDuration) < 0 && (typeof unblockDuration === 'string' && unblockDuration.trim() !== '')) {
 				o.value(unblockDuration, unblockDuration + ' ' + _('(minutes)'));
 			}
 		}
@@ -372,7 +376,7 @@ return view.extend({
 		}
 
 		o.handleValueChange = function (section_id, state, ev) {
-			if (this.keylist.indexOf(rule_currentValue) < 0 && rule_currentValue != null) {
+			if (this.keylist.indexOf(rule_currentValue) < 0 && (typeof rule_currentValue === 'string' && rule_currentValue.trim() !== '')) {
 				this.value(rule_currentValue, rule_currentValue + ' ' + _('(minutes)'));
 				this.map.reset();
 				this.default = rule_currentValue;

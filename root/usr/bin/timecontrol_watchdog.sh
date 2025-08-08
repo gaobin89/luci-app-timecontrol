@@ -103,6 +103,7 @@ update_ruleUnblockDuration() {
     if [ -z "${timerangelist}" ]; then
         timerangelist="00:00:00-23:59:59"
     fi
+    logger -t timecontrol_watchdog "$timerangelist"
     if [ -z "${weekdays}" ]; then
         weekdays="Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday"
     else
