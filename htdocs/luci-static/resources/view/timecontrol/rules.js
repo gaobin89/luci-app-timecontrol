@@ -277,6 +277,9 @@ return view.extend({
 			}
 			var value = basic_currentValue.trim() === '0' ? null : basic_currentValue;
 			var sections = getUciSections('rule');
+			if (sections.length === 0) {
+				return;
+			}
 			sections.forEach(element => {
 				var sectionId = element['.name'];
 				uci.set('timecontrol', sectionId, 'unblockDuration', value);
