@@ -6,9 +6,6 @@
 				"timecontrol"
 			],
 			"file": {
-				"/usr/bin/which": [
-					"exec"
-				],
 				"/usr/sbin/iptables": [
 					"exec"
 				],

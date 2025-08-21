@@ -1,3 +1,3 @@
 
-config basic
+config timecontrol 'config'
 	option enable '0'

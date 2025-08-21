@@ -5,9 +5,7 @@
 'require poll';
 'require uci';
 'require form';
-'require firewall as fwmodel';
 'require tools.firewall as fwtool';
-'require tools.widgets as widgets';
 
 function rule_macaddrlist_txt(s, hosts) {
 	var result = uci.get('timecontrol', s, 'macaddrlist');
@@ -111,37 +109,13 @@ var callExec = rpc.declare({
 	params: ['command', 'params', 'env']
 });
 
-function detectFirewallType() {
-	return L.resolveDefault(callExec('/usr/bin/which', ['nft']), {})
-		.then(function (res) {
-			return {
-				isFw4: res.code === 0,
-				isFw3: res.code !== 0
-			};
-		})
-		.catch(function (err) {
-			console.error('Error detecting firewall type:', err);
-			return {
-				isFw4: false,
-				isFw3: false,
-				error: true
-			};
-		});
-}
-
 function checkFirewallChain() {
-	return detectFirewallType().then(function (fwType) {
-		if (fwType.error) {
-			return Promise.reject('Failed to detect firewall type');
-		}
-		if (fwType.isFw4) {
-			return checkNftablesChain('timecontrol_forward_reject');
-		} else if (fwType.isFw3) {
-			return checkIptablesChain('timecontrol_forward_reject');
-		} else {
-			return Promise.reject('Unknown firewall type');
-		}
-	});
+	var fw4 = L.hasSystemFeature('firewall4');
+	if (fw4) {
+		return checkNftablesChain('timecontrol_forward_reject');
+	} else {
+		return checkIptablesChain('timecontrol_forward_reject');
+	}
 }
 
 function checkNftablesChain(chainName, table = 'fw4') {
@@ -239,8 +213,7 @@ return view.extend({
 			]);
 		}
 
-		s = m.section(form.TypedSection, 'basic', _('Global Settings'));
-		s.anonymous = true;
+		s = m.section(form.NamedSection, 'config', _('Global Settings'));
 
 		o = s.option(form.Flag, 'enable', _('Enable'));
 		o.default = o.disabled;
@@ -353,7 +326,6 @@ return view.extend({
 		o.modalonly = true;
 		//o.depends('enable', '1');
 		o.datatype = 'range(1,720)';
-
 		for (var i = 1; i <= 5; i++) {
 			o.value(i * 5, i * 5 + ' ' + _('(minutes)'));
 		}
@@ -363,24 +335,43 @@ return view.extend({
 		for (var i = 3; i <= 12; i++) {
 			o.value(i * 60, i * 60 + ' ' + _('(minutes)'));
 		}
+		o.cfgvalue = function (section_id) {
+			var value = uci.get('timecontrol', section_id, 'unblockDuration');
+			return value == 0 ? null : value;
+		};
 
 		var rule_sectionId = getUciSection('rule');
 		if (rule_sectionId) {
-			var unblockDuration = uci.get('timecontrol', rule_sectionId, 'unblockDuration');
+			var value = uci.get('timecontrol', rule_sectionId, 'unblockDuration');
+			var unblockDuration = value == 0 ? null : value;
 			if (o.keylist.indexOf(unblockDuration) < 0 && (typeof unblockDuration === 'string' && unblockDuration.trim() !== '')) {
 				o.value(unblockDuration, unblockDuration + ' ' + _('(minutes)'));
+				o.keylist.sort((a, b) => Number(a) - Number(b));
+				const keyOrder = o.keylist.map(String);
+				o.vallist.sort((a, b) => {
+					const aKey = a.split(' ')[0];
+					const bKey = b.split(' ')[0];
+					return keyOrder.indexOf(aKey) - keyOrder.indexOf(bKey);
+				});
 			}
 		}
-		var rule_currentValue = null;
+		var rule_currentValue = 0;
 		o.validate = function (section_id, value) {
 			var flag = this.super('validate', [section_id, value]);
-			rule_currentValue = flag ? value : null;
+			rule_currentValue = flag && value !== '' ? value : 0;
 			return flag;
 		}
 
 		o.handleValueChange = function (section_id, state, ev) {
 			if (this.keylist.indexOf(rule_currentValue) < 0 && (typeof rule_currentValue === 'string' && rule_currentValue.trim() !== '')) {
 				this.value(rule_currentValue, rule_currentValue + ' ' + _('(minutes)'));
+				this.keylist.sort((a, b) => Number(a) - Number(b));
+				const keyOrder = this.keylist.map(String);
+				this.vallist.sort((a, b) => {
+					const aKey = a.split(' ')[0];
+					const bKey = b.split(' ')[0];
+					return keyOrder.indexOf(aKey) - keyOrder.indexOf(bKey);
+				});
 				this.map.reset();
 				this.default = rule_currentValue;
 			}
