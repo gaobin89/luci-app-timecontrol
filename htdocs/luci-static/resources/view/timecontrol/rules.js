@@ -168,6 +168,16 @@ function renderStatus(isRunning) {
 	return renderHTML;
 }
 
+function sortList(o) {
+	o.keylist.sort((a, b) => Number(a) - Number(b));
+	const keyOrder = o.keylist.map(String);
+	o.vallist.sort((a, b) => {
+		const aKey = a.split(' ')[0];
+		const bKey = b.split(' ')[0];
+		return keyOrder.indexOf(aKey) - keyOrder.indexOf(bKey);
+	});
+}
+
 return view.extend({
 	callHostHints: rpc.declare({
 		object: 'luci-rpc',
@@ -222,7 +232,7 @@ return view.extend({
 			this.map.save(null, true);
 		}
 
-		o = s.option(form.Value, '', _('Temporary Unblock'), _('Set unblock duration for all rules'));
+		o = s.option(form.Value, 'unblockDuration', _('Temporary Unblock'), _('Set unblock duration for all rules'));
 		o.modalonly = true;
 		//o.depends('enable', '1');
 		o.datatype = 'range(0,720)';
@@ -236,19 +246,15 @@ return view.extend({
 		for (var i = 3; i <= 12; i++) {
 			o.value(i * 60, i * 60 + ' ' + _('(minutes)'));
 		}
-
-		var basic_currentValue = null;
-		o.validate = function (section_id, value) {
-			var flag = this.super('validate', [section_id, value]);
-			basic_currentValue = flag ? value : null;
-			return flag;
-		}
+		o.write = function (section_id, value) {
+			return true;
+		};
 
 		o.handleValueChange = function (section_id, state, ev) {
-			if (basic_currentValue === null || basic_currentValue.trim() === '') {
+			if (ev.target.value === null || ev.target.value.trim() === '') {
 				return;
 			}
-			var value = basic_currentValue.trim() === '0' ? null : basic_currentValue;
+			var value = ev.target.value.trim() === '0' ? null : ev.target.value;
 			var sections = getUciSections('rule');
 			if (sections.length === 0) {
 				return;
@@ -256,15 +262,11 @@ return view.extend({
 			sections.forEach(element => {
 				var sectionId = element['.name'];
 				uci.set('timecontrol', sectionId, 'unblockDuration', value);
-				uci.save('timecontrol');
 			});
 			this.map.save(null, true);
-			if (this.vallist.indexOf(basic_currentValue + ' ' + _('(minutes)')) > -1) {
-				this.map.reset();
-			}
-			else {
-				location.reload();
-			}
+			this.default = null;
+			this.map.reset();
+			//location.reload();
 		}
 
 		s = m.section(form.GridSection, 'rule', _('Control Rules'));
@@ -335,45 +337,23 @@ return view.extend({
 		for (var i = 3; i <= 12; i++) {
 			o.value(i * 60, i * 60 + ' ' + _('(minutes)'));
 		}
+
 		o.cfgvalue = function (section_id) {
 			var value = uci.get('timecontrol', section_id, 'unblockDuration');
-			return value == 0 ? null : value;
+			var unblockDuration = value == 0 ? null : value;
+			if (this.keylist.indexOf(unblockDuration) < 0 && (typeof unblockDuration === 'string' && unblockDuration.trim() !== '')) {
+				this.value(unblockDuration, unblockDuration + ' ' + _('(minutes)'));
+				sortList(this);
+			}
+			return unblockDuration;
 		};
 
-		var rule_sectionId = getUciSection('rule');
-		if (rule_sectionId) {
-			var value = uci.get('timecontrol', rule_sectionId, 'unblockDuration');
-			var unblockDuration = value == 0 ? null : value;
-			if (o.keylist.indexOf(unblockDuration) < 0 && (typeof unblockDuration === 'string' && unblockDuration.trim() !== '')) {
-				o.value(unblockDuration, unblockDuration + ' ' + _('(minutes)'));
-				o.keylist.sort((a, b) => Number(a) - Number(b));
-				const keyOrder = o.keylist.map(String);
-				o.vallist.sort((a, b) => {
-					const aKey = a.split(' ')[0];
-					const bKey = b.split(' ')[0];
-					return keyOrder.indexOf(aKey) - keyOrder.indexOf(bKey);
-				});
-			}
-		}
-		var rule_currentValue = 0;
-		o.validate = function (section_id, value) {
-			var flag = this.super('validate', [section_id, value]);
-			rule_currentValue = flag && value !== '' ? value : 0;
-			return flag;
-		}
-
 		o.handleValueChange = function (section_id, state, ev) {
-			if (this.keylist.indexOf(rule_currentValue) < 0 && (typeof rule_currentValue === 'string' && rule_currentValue.trim() !== '')) {
-				this.value(rule_currentValue, rule_currentValue + ' ' + _('(minutes)'));
-				this.keylist.sort((a, b) => Number(a) - Number(b));
-				const keyOrder = this.keylist.map(String);
-				this.vallist.sort((a, b) => {
-					const aKey = a.split(' ')[0];
-					const bKey = b.split(' ')[0];
-					return keyOrder.indexOf(aKey) - keyOrder.indexOf(bKey);
-				});
+			if (this.keylist.indexOf(ev.target.value) < 0 && (typeof ev.target.value === 'string' && ev.target.value.trim() !== '')) {
+				this.value(ev.target.value, ev.target.value + ' ' + _('(minutes)'));
+				sortList(this);
 				this.map.reset();
-				this.default = rule_currentValue;
+				this.default = ev.target.value;
 			}
 		}
 

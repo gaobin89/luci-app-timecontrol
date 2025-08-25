@@ -281,6 +281,14 @@ reset_sleep_time() {
     logger -t timecontrol "reset sleep time"
 }
 
+cleanup() {
+    if [ -f "$PIDFILE" ]; then
+        rm -f "$PIDFILE" >/dev/null 2>&1
+    fi
+    trap - USR1 EXIT
+    logger -t timecontrol "timecontrol cleanup done"
+}
+
 start() {
     if [ -f "$PIDFILE" ]; then
         pid=$(cat "$PIDFILE" 2>/dev/null)
@@ -292,15 +300,17 @@ start() {
             echo "timecontrol is already running"
             return 0
         fi
-    else
-        echo $$ >"$PIDFILE"
     fi
+
+    echo $$ >"$PIDFILE"
+    trap reset_sleep_time USR1
+    trap cleanup EXIT
 
     Initialize start
     while true; do
         while [ $SLEEPTIME -gt 0 ]; do
-            sleep 1
-            SLEEPTIME=$(expr $SLEEPTIME - 1)
+            sleep 3
+            SLEEPTIME=$(expr $SLEEPTIME - 3)
         done
         SLEEPTIME=60
         update_unblockDuration
@@ -370,7 +380,6 @@ flush)
     Initialize flush
     ;;
 *)
-    trap reset_sleep_time USR1
     start
     ;;
 esac
