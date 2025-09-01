@@ -324,7 +324,7 @@ return view.extend({
 		o.placeholder = _('Unnamed rule');
 		o.modalonly = true;
 
-		o = s.taboption('general', form.Value, 'unblockDuration', _('Temporary Unblock'));
+		o = s.taboption('general', form.ListValue, 'unblockDuration', _('Temporary Unblock'));
 		o.modalonly = true;
 		//o.depends('enable', '1');
 		o.datatype = 'range(1,720)';
@@ -348,13 +348,21 @@ return view.extend({
 			return unblockDuration;
 		};
 
-		o.handleValueChange = function (section_id, state, ev) {
-			if (this.keylist.indexOf(ev.target.value) < 0 && (typeof ev.target.value === 'string' && ev.target.value.trim() !== '')) {
-				this.value(ev.target.value, ev.target.value + ' ' + _('(minutes)'));
-				sortList(this);
-				this.map.reset();
-				this.default = ev.target.value;
-			}
+		o.renderWidget = function (section_id, option_index, cfgvalue) {
+			const value = (cfgvalue != null) ? cfgvalue : this.default;
+			const choices = this.transformChoices();
+			const placeholder = (this.optional || this.rmempty) ? E('em', _('unspecified')) : _('-- Please choose --');
+			let widget = new ui.Combobox(Array.isArray(value) ? value.join(' ') : value, choices, {
+				id: this.cbid(section_id),
+				sort: this.keylist,
+				optional: this.optional || this.rmempty,
+				datatype: this.datatype,
+				select_placeholder: this.placeholder ?? placeholder,
+				validate: L.bind(this.validate, this, section_id),
+				disabled: (this.readonly != null) ? this.readonly : this.map.readonly,
+				create_markup: '<li data-value="{{value}}">' + '{{value}}' + ' ' + _('(minutes)') + '</span>' + '</li>'
+			});
+			return widget.render();
 		}
 
 		fwtool.addMACOption(s, 'general', 'macaddrlist', _('Client MAC'), null, hosts);
