@@ -118,12 +118,20 @@ function checkFirewallChain() {
 	}
 }
 
+function countRules(output, invalidLineCount) {
+	if (!output) return 0;
+	const lines = output.split('\n').map(l => l.trim());
+	const validLines = lines.filter(l => l);
+	return Math.max(validLines.length - invalidLineCount, 0);
+}
+
 function checkNftablesChain(chainName, table = 'fw4') {
 	return L.resolveDefault(callExec('/usr/sbin/nft', ['list', 'chain', 'inet', table, chainName]), {})
 		.then(function (res) {
 			return {
 				exists: res.code === 0,
 				output: res.stdout,
+				ruleCount: countRules(res.stdout, 4),
 				table: table,
 				type: 'nftables',
 				command: 'nft list chain ' + table + ' ' + chainName
@@ -139,6 +147,7 @@ function checkIptablesChain(chainName, table = 'filter', ipv6 = false) {
 			return {
 				exists: res.code === 0,
 				output: res.stdout,
+				ruleCount: countRules(res.stdout, 2),
 				table: table,
 				type: ipv6 ? 'ip6tables' : 'iptables',
 				command: cmd + ' -t ' + table + ' -nL ' + chainName,
@@ -149,22 +158,21 @@ function checkIptablesChain(chainName, table = 'filter', ipv6 = false) {
 
 function getFirewallChainStatus() {
 	return checkFirewallChain().then(function (res) {
-		return res && res.exists === true;
+		return res;
 	}).catch(function (err) {
 		console.error('Error checking firewall chain:', err);
 		return false;
 	});
 }
 
-function renderStatus(isRunning) {
-	var spanTemp = '<em><span style="color:%s"><strong>%s %s</strong></span></em>';
+function renderStatus(res) {
+	var spanTemp = '<em><span style="color:%s"><strong>%s %s</strong></span>\t\t<strong>|</strong>\t\t<span style="color:%s"><strong>%s: %d</strong></span></em>';
 	var renderHTML;
-	if (isRunning) {
-		renderHTML = String.format(spanTemp, 'green', _('Control'), _('Enabled'));
-	} else {
-		renderHTML = String.format(spanTemp, 'red', _('Control'), _('Disabled'));
-	}
-
+	var isRunning = res.exists;
+	var statusColor = isRunning ? '#059669' : 'red';
+	var statusText = isRunning ? _('Enabled') : _('Disabled');
+	var ruleCountColor = res.ruleCount > 0 ? '#059669' : '#f59e0b';
+	renderHTML = String.format(spanTemp, statusColor, _('Control'), statusText, ruleCountColor, _('Active Rules'), res.ruleCount);
 	return renderHTML;
 }
 
@@ -324,7 +332,7 @@ return view.extend({
 		o.placeholder = _('Unnamed rule');
 		o.modalonly = true;
 
-		o = s.taboption('general', form.ListValue, 'unblockDuration', _('Temporary Unblock'));
+		o = s.taboption('general', form.Value, 'unblockDuration', _('Temporary Unblock'));
 		o.modalonly = true;
 		//o.depends('enable', '1');
 		o.datatype = 'range(1,720)';

@@ -94,3 +94,6 @@ msgstr "建议与反馈"
 
 msgid "Set unblock duration for all rules"
 msgstr "为所有规则设置临时解禁时间"
+
+msgid "Active Rules"
+msgstr "活动规则"
