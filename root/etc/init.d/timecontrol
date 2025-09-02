@@ -11,10 +11,13 @@ cleanup() {
 	$("$PROG" stop) >/dev/null 2>&1
 }
 
+config_n_get() {
+	local ret=$(uci -q get "${CONF}.${1}.${2}")
+	echo "${ret:=$3}"
+}
+
 start_service() {
-	config_load "$CONF"
-	local enabled
-	config_get_bool enabled "config" "enable" "0"
+	local enabled=$(config_n_get "config" "enable" 0)
 
 	if [ $enabled -ne 1 ]; then
 		$(/etc/init.d/"$CONF" stop) >/dev/null 2>&1

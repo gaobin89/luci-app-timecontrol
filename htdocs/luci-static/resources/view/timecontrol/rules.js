@@ -166,7 +166,7 @@ function getFirewallChainStatus() {
 }
 
 function renderStatus(res) {
-	var spanTemp = '<em><span style="color:%s"><strong>%s %s</strong></span>\t\t<strong>|</strong>\t\t<span style="color:%s"><strong>%s: %d</strong></span></em>';
+	var spanTemp = '<em><span style="color:%s"><strong>%s%s</strong></span>\t\t<strong>|</strong>\t\t<span style="color:%s"><strong>%s: %d</strong></span></em>';
 	var renderHTML;
 	var isRunning = res.exists;
 	var statusColor = isRunning ? '#059669' : 'red';
@@ -391,7 +391,7 @@ return view.extend({
 			return this.super('write', [section_id, L.toArray(value).join(' ')]);
 		};
 
-		o = s.taboption('timed', form.DynamicList, 'timerangelist', _('Time Ranges'), '00:00:00-23:59:59');
+		o = s.taboption('timed', form.DynamicList, 'timerangelist', _('Time Ranges'), _('Example') + ': ' + '00:00:00-23:59:59');
 		o.modalonly = true;
 		//o.default = '00:00:00-23:59:59';
 		o.placeholder = 'hh:mm:ss-hh:mm:ss';
