@@ -172,7 +172,7 @@ function renderStatus(res) {
 	var statusColor = isRunning ? '#059669' : 'red';
 	var statusText = isRunning ? _('Enabled') : _('Disabled');
 	var ruleCountColor = res.ruleCount > 0 ? '#059669' : '#f59e0b';
-	renderHTML = String.format(spanTemp, statusColor, _('Control'), statusText, ruleCountColor, _('Active Rules'), res.ruleCount);
+	renderHTML = String.format(spanTemp, statusColor, _('Control'), statusText, ruleCountColor, _('Control Rules'), res.ruleCount);
 	return renderHTML;
 }
 
