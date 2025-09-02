@@ -239,7 +239,7 @@ update_ruleUnblockDuration() {
 	local unblockDuration=$(config_n_get "$1" "unblockDuration" 0)
 
 	if [ $unblockDuration -le 0 ]; then
-		return 0
+		return
 	fi
 
 	if [ -z "${timerangelist}" ]; then
@@ -253,13 +253,15 @@ update_ruleUnblockDuration() {
 
 	unblockDuration=$(expr $unblockDuration - 1)
 
-	uci -q set timecontrol.$1.unblockDuration=$unblockDuration
-	uci -q commit timecontrol
-	logger -t timecontrol "Update timecontrol rule's unblock duration to $unblockDuration (MAC: ${macaddrlist}, Time: ${timerangelist}, Days: ${weekdays}) "
 	if [ $unblockDuration -eq 0 ]; then
 		IsUpdate=1
+		uci -q delete timecontrol.$1.unblockDuration
+	else
+		uci -q set timecontrol.$1.unblockDuration=$unblockDuration
 	fi
+	uci -q commit timecontrol
 
+	logger -t timecontrol "Update timecontrol rule's unblock duration to $unblockDuration (MAC: ${macaddrlist}, Time: ${timerangelist}, Days: ${weekdays}) "
 }
 
 update_unblockDuration() {
