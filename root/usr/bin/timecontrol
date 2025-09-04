@@ -276,24 +276,17 @@ set_iptablesRules() {
 }
 
 update_ruleUnblockDuration() {
-	local enable=$(config_n_get "CONF" "$1" "enable" 0)
-	local macaddrlist=$(config_n_get "CONF" "$1" "macaddrlist")
-	local timerangelist=$(config_n_get "CONF" "$1" "timerangelist" "00:00:00-23:59:59")
-	local weekdays=$(config_n_get "CONF" "$1" "weekdays" "Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday")
-	local unblockDuration=$(config_n_get "CONF" "$1" "unblockDuration" 0)
+	local enable=$(config_n_get "$CONF" "$1" "enable" 0)
+	local macaddrlist=$(config_n_get "$CONF" "$1" "macaddrlist")
+	local timerangelist=$(config_n_get "$CONF" "$1" "timerangelist" "00:00:00-23:59:59")
+	local weekdays=$(config_n_get "$CONF" "$1" "weekdays" "Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday")
+	local unblockDuration=$(config_n_get "$CONF" "$1" "unblockDuration" 0)
 
 	if [ $unblockDuration -le 0 ]; then
 		return
 	fi
 
-	if [ -z "${timerangelist}" ]; then
-		timerangelist="00:00:00-23:59:59"
-	fi
-	if [ -z "${weekdays}" ]; then
-		weekdays="Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday"
-	else
-		weekdays=$(echo "$weekdays" | sed 's/ /,/g')
-	fi
+	weekdays=$(echo "$weekdays" | sed 's/ /,/g')
 
 	unblockDuration=$(expr $unblockDuration - 1)
 
