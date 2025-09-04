@@ -104,18 +104,18 @@ add_controlRules() {
 			done
 		done
 	else
-		local ether_saddr_param="" macaddr
+		local ether_saddr_param macaddr
 		if [ -n "$macaddrlist" ]; then
 			macaddr=$(echo $macaddrlist | sed 's/ /,/g')
 			ether_saddr_param="ether saddr { ${macaddr} } "
 		fi
 
-		local meta_hour_param="" timeranges
-		if [[ ! $timerangelist =~ "00:00:00-23:59:59" ]]; then
+		local meta_hour_param timeranges
+		if [ -z $(echo $timerange | grep -q "00:00:00-23:59:59") ]; then
 			timeranges="$timerangelist"
 		fi
 		if [ -n "$timeranges" ]; then
-			local utc_timeranges=""
+			local utc_timeranges
 			for timerange in $timeranges; do
 				if [ -z "$utc_timeranges" ]; then
 					utc_timeranges="$(get_UTC_timerange "$timerange")"
@@ -126,7 +126,7 @@ add_controlRules() {
 			meta_hour_param="meta hour { ${utc_timeranges} } "
 		fi
 
-		local meta_day_param="" days
+		local meta_day_param days
 		if [ "$weekdays" != "Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday" ]; then
 			days="$weekdays"
 		fi
