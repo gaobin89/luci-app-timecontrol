@@ -111,7 +111,8 @@ add_controlRules() {
 		fi
 
 		local meta_hour_param timeranges
-		if [ -z $(echo $timerange | grep -q "00:00:00-23:59:59") ]; then
+		echo "$timerangelist" | grep -q "00:00:00-23:59:59"
+		if [ $? -ne 0 ]; then
 			timeranges="$timerangelist"
 		fi
 		if [ -n "$timeranges" ]; then
