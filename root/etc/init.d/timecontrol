@@ -6,23 +6,27 @@ START=99
 CONF="timecontrol"
 PROG="/usr/bin/$CONF"
 PIDFILE="/var/run/$CONF.pid"
+INCLUDE_PATH="/var/etc/$CONF.include"
 
 cleanup() {
 	$("$PROG" stop) >/dev/null 2>&1
+	rm -rf "$INCLUDE_PATH"
 }
 
 config_n_get() {
-	local ret=$(uci -q get "${CONF}.${1}.${2}")
-	echo "${ret:=$3}"
+	local ret=$(uci -q get "${1}.${2}.${3}")
+	echo "${ret:=$4}"
 }
 
 start_service() {
-	local enabled=$(config_n_get "config" "enable" 0)
+	local enabled=$(config_n_get "$CONF" "config" "enable" 0)
 
 	if [ $enabled -ne 1 ]; then
 		$(/etc/init.d/"$CONF" stop) >/dev/null 2>&1
 		return 1
 	fi
+
+	mkdir -p "$(dirname "$INCLUDE_PATH")" && echo "/etc/init.d/$CONF reload" >"$INCLUDE_PATH"
 
 	if [ -f "$PIDFILE" ]; then
 		pid=$(cat "$PIDFILE" 2>/dev/null)

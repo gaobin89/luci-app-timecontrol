@@ -27,7 +27,11 @@ function rule_timerangelist_txt(s) {
 	var result = uci.get('timecontrol', s, 'timerangelist');
 	if (result === null || result === undefined || (typeof result === 'string' && result.trim() === '')) {
 		result = _('AnyTime');
+	} else if (Array.isArray(result) && result.indexOf('00:00:00-23:59:59') >= 0) {
+		result = _('AnyTime');
 	}
+	console.log('result:', result);
+	console.log('type', typeof result);
 	var items = fwtool.map_invert(result);
 	return fwtool.fmt(_('%{timerangelist}'), {
 		timerangelist: formatListWithLineBreaks(items, 1)

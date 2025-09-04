@@ -22,13 +22,39 @@ iptables_w() {
 }
 
 config_n_get() {
-	local ret=$(uci -q get "${CONF}.${1}.${2}")
-	echo "${ret:=$3}"
+	local ret=$(uci -q get "${1}.${2}.${3}")
+	echo "${ret:=$4}"
+}
+
+convert_timeToUTC() {
+	local input_time="$1"
+	local current_time=$(date +%Y-%m-%d)
+	local system_timezone=$(config_n_get "system" "@system[-1]" "timezone" "UTC")
+	local timestamp=$(TZ=$system_timezone date -d "$current_time $input_time" +%s 2>/dev/null)
+	local utc_time=$(TZ=UTC date -d @$timestamp +%H:%M:%S)
+	echo $utc_time
+}
+
+get_UTC_timerange() {
+	start_time=$(echo "$1" | awk -F '-' '{print $1}')
+	end_time=$(echo "$1" | awk -F '-' '{print $2}')
+	start_utctime=$(convert_timeToUTC "$start_time")
+	end_utctime=$(convert_timeToUTC "$end_time")
+
+	if [ "$(date -d "$end_utctime" +%s)" -lt "$(date -d "$start_utctime" +%s)" ]; then
+		if [ "$end_utctime" == "00:00:00" ]; then
+			echo \"${start_utctime}\"-\"23:59:59\"
+		else
+			echo \"${start_utctime}\"-\"23:59:59\",\"00:00:00\"-\"${end_utctime}\"
+		fi
+	else
+		echo \"${start_utctime}\"-\"${end_utctime}\"
+	fi
 }
 
 load_config() {
 	config_load "$CONF"
-	TIMECONTROL_ENABLE=$(config_n_get "config" "enable" 0)
+	TIMECONTROL_ENABLE=$(config_n_get "$CONF" "config" "enable" 0)
 
 	if [ $TIMECONTROL_ENABLE -ne 1 ]; then
 		logger -t timecontrol "timecontrol is disabled, exiting."
@@ -37,30 +63,23 @@ load_config() {
 }
 
 add_controlRules() {
-	local enable=$(config_n_get "$1" "enable" 0)
-	local macaddrlist=$(config_n_get "$1" "macaddrlist")
-	local timerangelist=$(config_n_get "$1" "timerangelist" "00:00:00-23:59:59")
-	local weekdays=$(config_n_get "$1" "weekdays" "Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday")
-	local unblockDuration=$(config_n_get "$1" "unblockDuration" 0)
+	local enable=$(config_n_get "$CONF" "$1" "enable" 0)
+	local macaddrlist=$(config_n_get "$CONF" "$1" "macaddrlist")
+	local timerangelist=$(config_n_get "$CONF" "$1" "timerangelist" "00:00:00-23:59:59")
+	local weekdays=$(config_n_get "$CONF" "$1" "weekdays" "Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday")
+	local unblockDuration=$(config_n_get "$CONF" "$1" "unblockDuration" 0)
 
 	if [ $enable -ne 1 ] || [ $unblockDuration -gt 0 ]; then
 		return 0
 	fi
-	if [ -z "${timerangelist}" ]; then
-		timerangelist="00:00:00-23:59:59"
-	fi
-	if [ -z "${weekdays}" ]; then
-		weekdays="Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday"
-	else
-		weekdays=$(echo "$weekdays" | sed 's/ /,/g')
-	fi
 
-	for timerange in $timerangelist; do
-		timeon=$(echo "$timerange" | awk -F '-' '{print $1}')
-		timeoff=$(echo "$timerange" | awk -F '-' '{print $2}')
+	weekdays=$(echo "$weekdays" | sed 's/ /,/g')
 
-		if [ -z "$FW4" ]; then
-			local chain target
+	if [ -z "$FW4" ]; then
+		local chain target
+		for timerange in $timerangelist; do
+			timeon=$(echo "$timerange" | awk -F '-' '{print $1}')
+			timeoff=$(echo "$timerange" | awk -F '-' '{print $2}')
 
 			for table in filter nat; do
 				case $table in
@@ -83,17 +102,42 @@ add_controlRules() {
 					done
 				fi
 			done
-		else
-			if [ -z "${macaddrlist}" ]; then
-				nft "add rule inet fw4 timecontrol_forward_reject meta hour \"${timeon}\"-\"${timeoff}\" meta day { ${weekdays} } counter jump handle_reject comment \"!fw4: Time control\""
-				nft "add rule inet fw4 timecontrol_dstnat_accept meta hour \"${timeon}\"-\"${timeoff}\" meta day { ${weekdays} } counter accept comment \"!fw4: Time control\""
-			else
-				macaddr=$(echo $macaddrlist | sed 's/ /,/g')
-				nft "add rule inet fw4 timecontrol_forward_reject ether saddr { ${macaddr} } meta hour \"${timeon}\"-\"${timeoff}\" meta day { ${weekdays} } counter jump handle_reject comment \"!fw4: Time control\""
-				nft "add rule inet fw4 timecontrol_dstnat_accept ether saddr { ${macaddr} } meta hour \"${timeon}\"-\"${timeoff}\" meta day { ${weekdays} } counter accept comment \"!fw4: Time control\""
-			fi
+		done
+	else
+		local ether_saddr_param="" macaddr
+		if [ -n "$macaddrlist" ]; then
+			macaddr=$(echo $macaddrlist | sed 's/ /,/g')
+			ether_saddr_param="ether saddr { ${macaddr} } "
 		fi
-	done
+
+		local meta_hour_param="" timeranges
+		if [[ ! $timerangelist =~ "00:00:00-23:59:59" ]]; then
+			timeranges="$timerangelist"
+		fi
+		if [ -n "$timeranges" ]; then
+			local utc_timeranges=""
+			for timerange in $timeranges; do
+				if [ -z "$utc_timeranges" ]; then
+					utc_timeranges="$(get_UTC_timerange "$timerange")"
+				else
+					utc_timeranges="${utc_timeranges},$(get_UTC_timerange "$timerange")"
+				fi
+			done
+			meta_hour_param="meta hour { ${utc_timeranges} } "
+		fi
+
+		local meta_day_param="" days
+		if [ "$weekdays" != "Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday" ]; then
+			days="$weekdays"
+		fi
+		if [ -n "$days" ]; then
+			meta_day_param="meta day { ${days} } "
+		fi
+
+		TZ=UTC nft "add rule inet fw4 timecontrol_forward_reject ${ether_saddr_param} ${meta_hour_param} ${meta_day_param} counter jump handle_reject comment \"!fw4: Time control\""
+		TZ=UTC nft "add rule inet fw4 timecontrol_dstnat_accept ${ether_saddr_param} ${meta_hour_param} ${meta_day_param} counter accept comment \"!fw4: Time control\""
+	fi
+
 	logger -t timecontrol "Added timecontrol rule (MAC: ${macaddrlist}, Time: ${timerangelist}, Weekdays: ${weekdays})"
 
 	if [ -n "$(command -v conntrack 2>/dev/null)" ]; then
@@ -232,11 +276,11 @@ set_iptablesRules() {
 }
 
 update_ruleUnblockDuration() {
-	local enable=$(config_n_get "$1" "enable" 0)
-	local macaddrlist=$(config_n_get "$1" "macaddrlist")
-	local timerangelist=$(config_n_get "$1" "timerangelist" "00:00:00-23:59:59")
-	local weekdays=$(config_n_get "$1" "weekdays" "Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday")
-	local unblockDuration=$(config_n_get "$1" "unblockDuration" 0)
+	local enable=$(config_n_get "CONF" "$1" "enable" 0)
+	local macaddrlist=$(config_n_get "CONF" "$1" "macaddrlist")
+	local timerangelist=$(config_n_get "CONF" "$1" "timerangelist" "00:00:00-23:59:59")
+	local weekdays=$(config_n_get "CONF" "$1" "weekdays" "Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday")
+	local unblockDuration=$(config_n_get "CONF" "$1" "unblockDuration" 0)
 
 	if [ $unblockDuration -le 0 ]; then
 		return
