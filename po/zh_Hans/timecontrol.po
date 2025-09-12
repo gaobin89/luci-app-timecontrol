@@ -97,3 +97,6 @@ msgstr "为所有规则设置临时解禁时间"
 
 msgid "Example"
 msgstr "例如"
+
+msgid "Time ranges overlap"
+msgstr "时间范围重叠"

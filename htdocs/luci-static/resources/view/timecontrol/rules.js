@@ -30,8 +30,7 @@ function rule_timerangelist_txt(s) {
 	} else if (Array.isArray(result) && result.indexOf('00:00:00-23:59:59') >= 0) {
 		result = _('AnyTime');
 	}
-	console.log('result:', result);
-	console.log('type', typeof result);
+	result = sortTimeRanges(result);
 	var items = fwtool.map_invert(result);
 	return fwtool.fmt(_('%{timerangelist}'), {
 		timerangelist: formatListWithLineBreaks(items, 1)
@@ -190,6 +189,16 @@ function sortList(o) {
 	});
 }
 
+function sortTimeRanges(value) {
+	let ranges = Array.isArray(value) ? value : (value ? [value] : []);
+	ranges = ranges.slice().sort((a, b) => {
+		const aStart = a.split('-')[0];
+		const bStart = b.split('-')[0];
+		return aStart.localeCompare(bStart);
+	});
+	return ranges;
+}
+
 return view.extend({
 	callHostHints: rpc.declare({
 		object: 'luci-rpc',
@@ -303,25 +312,25 @@ return view.extend({
 			return this.map.save(null, true);
 		};
 
-		o = s.option(form.ListValue, 'unblockDuration', _('Temporary Unblock'));
+		o = s.option(form.Value, 'unblockDuration', _('Temporary Unblock'));
 		o.modalonly = false;
 		o.textvalue = function (s) {
 			return rule_unblockDuration_txt(s);
 		};
 
-		o = s.option(form.DummyValue, 'macaddrlist', _('Client MAC'));
+		o = s.option(form.Value, 'macaddrlist', _('Client MAC'));
 		o.modalonly = false;
 		o.textvalue = function (s) {
 			return rule_macaddrlist_txt(s, hosts);
 		};
 
-		o = s.option(form.ListValue, 'timerangelist', _('Time Ranges'));
+		o = s.option(form.Value, 'timerangelist', _('Time Ranges'));
 		o.modalonly = false;
 		o.textvalue = function (s) {
 			return rule_timerangelist_txt(s);
 		};
 
-		o = s.option(form.ListValue, 'weekdays', _('Week Days'));
+		o = s.option(form.Value, 'weekdays', _('Week Days'));
 		o.modalonly = false;
 		o.textvalue = function (s) {
 			return rule_weekdays_txt(s);
@@ -399,27 +408,38 @@ return view.extend({
 		o.modalonly = true;
 		//o.default = '00:00:00-23:59:59';
 		o.placeholder = 'hh:mm:ss-hh:mm:ss';
+
+		o.cfgvalue = function (section_id) {
+			var value = uci.get('timecontrol', section_id, 'timerangelist');
+			return sortTimeRanges(value);
+		};
+
+		o.write = function (section_id, value) {
+			let ranges = sortTimeRanges(value);
+			return this.super('write', [section_id, ranges]);
+		};
+
 		o.validate = function (section_id, value) {
-			function isValidTimeRange(str) {
+			function parseTime(time) {
+				if (typeof time !== 'string') return null;
 				const timeRegex = /^(\d\d):(\d\d):(\d\d)$/;
-				const [startTime, endTime] = str.split('-');
+				const match = time.match(timeRegex);
+				if (!match) return null;
+				const [, h, m, s] = match;
+				const hours = parseInt(h, 10);
+				const minutes = parseInt(m, 10);
+				const seconds = parseInt(s, 10);
+				if (hours > 23 || minutes > 59 || seconds > 59) return null;
+				return hours * 3600 + minutes * 60 + seconds;
+			}
 
-				if (!startTime || !endTime) return false;
+			function getRangeSec(str) {
+				const [start, end] = str.split('-');
+				return [parseTime(start), parseTime(end)];
+			}
 
-				const validateTime = (time) => {
-					const match = time.match(timeRegex);
-					if (!match) return null;
-					const [, h, m, s] = match;
-					const hours = parseInt(h, 10);
-					const minutes = parseInt(m, 10);
-					const seconds = parseInt(s, 10);
-					if (hours > 23 || minutes > 59 || seconds > 59) return null;
-					return hours * 3600 + minutes * 60 + seconds;
-				};
-
-				const startSec = validateTime(startTime);
-				const endSec = validateTime(endTime);
-
+			function isValidTimeRange(str) {
+				const [startSec, endSec] = getRangeSec(str);
 				return startSec !== null && endSec !== null && startSec < endSec;
 			}
 
@@ -437,8 +457,22 @@ return view.extend({
 				}
 			}
 
+			const [startSec, endSec] = getRangeSec(value);
+
+			let ranges = this.formvalue(section_id);
+			ranges = Array.isArray(ranges) ? ranges : (ranges ? [ranges] : []);
+
+			for (const r of ranges) {
+				if (r === value) continue;
+				const [rStart, rEnd] = getRangeSec(r);
+				if (!(endSec <= rStart || startSec >= rEnd)) {
+					return _('Time ranges overlap') + ': ' + value + ' & ' + r;
+				}
+			}
+
 			return true;
 		}
+
 		return m.render();
 	}
 });
