@@ -5,13 +5,19 @@
 
 include $(TOPDIR)/rules.mk
 
-LUCI_TITLE:=LuCI support for Time Control (JavaScript)
-LUCI_PKGARCH:=all
 PKG_NAME:=luci-app-timecontrol
-PKG_VERSION:=2.4.2
-PKG_RELEASE:=20251204
+PKG_VERSION:=2.4.3
+PKG_RELEASE:=20260718
 
-include $(TOPDIR)/feeds/luci/luci.mk
+include $(INCLUDE_DIR)/package.mk
+
+define Package/$(PKG_NAME)
+	SECTION:=luci
+	CATEGORY:=LuCI
+	SUBMENU:=3. Applications
+	TITLE:=LuCI support for Time Control (JavaScript)
+	PKGARCH:=all
+endef
 
 define Package/$(PKG_NAME)/prerm
 	#!/bin/sh
