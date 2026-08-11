@@ -80,11 +80,7 @@ jobs:
         with:
           name: ${{ matrix.arch }}-${{ matrix.sdk }}
           path: bin/packages/${{ matrix.arch }}/packages_ci/
-
-      - name: Create compress files
-        run: |
-          zip -j Luci-app-timecontrol-${{ matrix.sdk }}.zip bin/packages/${{ matrix.arch }}/packages_ci/*
-     
+    
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
@@ -97,12 +93,9 @@ jobs:
 
              #### 注：
              
-             - **`Luci-app-timecontrol-openwrt-24.10.zip`** --> ipk安装包
-             - **`Luci-app-timecontrol-master.zip`** --> apk安装包
-
              - **`*.apk` 跳过证书安装命令** 
-             `apk add --allow-untrusted luci-app-timecontrol.apk`
+             `apk add --allow-untrusted *.apk`
           
             tag_name: ${{ steps.date.outputs.date }}
-            files: Luci-app-timecontrol-${{ matrix.sdk }}.zip
+            files: bin/packages/${{ matrix.arch }}/packages_ci/*.*
  
