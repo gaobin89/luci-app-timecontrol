@@ -10,6 +10,7 @@ PKG_VERSION:=2.4.4
 PKG_RELEASE:=20260811
 
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)
+PO2LMO_DIR:=$(TOPDIR)/feeds/luci/modules/luci-base/src
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -22,7 +23,8 @@ define Package/$(PKG_NAME)
 endef
 
 define Build/Prepare
-	po2lmo ${CURDIR}/po/zh_Hans/timecontrol.po $(PKG_BUILD_DIR)/timecontrol.zh-cn.lmo;
+	make -C $(PO2LMO_DIR) po2lmo
+	${PO2LMO_DIR}/po2lmo ${CURDIR}/po/zh_Hans/timecontrol.po $(PKG_BUILD_DIR)/timecontrol.zh-cn.lmo;
 endef
 
 define Build/Compile
