@@ -403,6 +403,54 @@ function addTimeRangeOption(s, tab, name, label, description) {
 	return o;
 }
 
+function getTargetRules(ruleSelectType, selectedRules) {
+	var targetRules = [];
+	var sections = getUciSections('rule');
+
+	if (sections.length === 0) {
+		return targetRules;
+	}
+
+	switch (ruleSelectType) {
+		case '0':
+			targetRules = sections;
+			break;
+		case '1':
+			targetRules = sections.filter(element => {
+				var enable = element['enable'];
+				return enable === '1';
+			});
+			break;
+		case '2':
+			targetRules = sections.filter(element => {
+				var enable = element['enable'];
+				return enable === undefined || enable === '0';
+			});
+			break;
+		default:
+			targetRules = sections.filter(element => {
+				var sectionId = element['.name'];
+				return selectedRules.indexOf(sectionId) > -1;
+			});
+			break;
+	}
+	return targetRules;
+}
+
+function setTemporaryDurationOption(object, targetRules, controlType, value) {
+	if (targetRules.length === 0) {
+		ui.addTimeLimitedNotification(null, E('p', _('Please select at least one rule first')), 3000, 'warning');
+		return;
+	}
+	targetRules.forEach(element => {
+		var sectionId = element['.name'];
+		uci.set('timecontrol', sectionId, 'temporaryControl', controlType);
+		uci.set('timecontrol', sectionId, 'temporaryDuration', value);
+	});
+	object.map.save(null, true);
+	ui.changes.apply(true);
+}
+
 // 兼容性处理：如果 form.RichListValue 不存在则自定义
 if (typeof form.RichListValue !== 'function') {
 	const CBIRichListValue = form.ListValue.extend({
@@ -469,6 +517,9 @@ if (typeof ui.addTimeLimitedNotification !== 'function') {
 	};
 	ui.addTimeLimitedNotification = addTimeLimitedNotification;
 }
+
+var ruleSelectType = '1';
+var selectedRules = [];
 
 return view.extend({
 	callHostHints: rpc.declare({
@@ -578,50 +629,78 @@ return view.extend({
 			uci.save();
 		};
 
-		o = addTemporaryDurationOption(s, 'quick', 'blockDuration', _('Temporary Block'), _('Set block duration for all rules'), 0, 720);
+		o = s.taboption('quick', form.RichListValue, 'ruleSelectType', _('Target Rules'));
+		o.modalonly = true;
+		o.default = '1';
+		o.value('0', _('All Rules'), _('Choose all rules'));
+		o.value('1', _('Enabled Rules'), _('Choose all enabled rules'));
+		o.value('2', _('Disabled Rules'), _('Choose all disabled rules'));
+		o.value('3', _('Manually Choose'), _('Manually Choose rules'));
+
+		o.onchange = function (ev, section_id, value) {
+			ruleSelectType = value;
+		};
+
+		o.write = function (section_id, value) {
+			return true;
+		};
+
+		o = s.taboption('quick', form.MultiValue, 'selectedRules', ' ');
+		o.display = 2;
+		o.modalonly = true;
+		o.multiple = true;
+		o.depends('ruleSelectType', '3');
+
+		(function () {
+			var sections = getUciSections('rule');
+			if (sections.length === 0) {
+				return;
+			}
+			sections.forEach(element => {
+				var sectionId = element['.name'];
+				var ruleName = element['name'] || '';
+				if (ruleName === null || ruleName === undefined || (typeof ruleName === 'string' && ruleName.trim() === '')) {
+					o.value(sectionId, _('Unnamed rule') + ' (' + sectionId + ')');
+				}
+				else {
+					o.value(sectionId, ruleName + ' (' + sectionId + ')');
+				}
+			});
+		})();
+
+		o.onchange = function (ev, section_id, value) {
+			selectedRules = value;
+		};
+
+		o.write = function (section_id, value) {
+			return true;
+		};
+
+		o = addTemporaryDurationOption(s, 'quick', 'blockDuration', _('Temporary Block'), _('Set block duration for selected rules'), 0, 720);
 
 		o.write = function (section_id, value) {
 			return true;
 		};
 
 		o.onchange = function (ev, section_id, value) {
-			var sections = getUciSections('rule');
-			if (sections.length === 0) {
-				ui.addTimeLimitedNotification(null, E('p', _('Please add at least one rule first')), 3000, 'warning');
-				return;
-			}
-			sections.forEach(element => {
-				var sectionId = element['.name'];
-				uci.set('timecontrol', sectionId, 'temporaryControl', 1);
-				uci.set('timecontrol', sectionId, 'temporaryDuration', value);
-			});
-			this.map.save(null, true).then(function () {
+			/* this.map.save(null, true).then(function () {
 				ui.addTimeLimitedNotification(null, E('p', _('Set temporary block duration for all rules successfully')), 3000, 'success');
 			});
-			//this.map.reset();
-			//location.reload();
+			this.map.reset();
+			location.reload(); */
+			var targetRules = getTargetRules(ruleSelectType, selectedRules);
+			setTemporaryDurationOption(this, targetRules, 1, value);
 		};
 
-		o = addTemporaryDurationOption(s, 'quick', 'unblockDuration', _('Temporary Unblock'), _('Set unblock duration for all rules'), 0, 720);
+		o = addTemporaryDurationOption(s, 'quick', 'unblockDuration', _('Temporary Unblock'), _('Set unblock duration for selected rules'), 0, 720);
 
 		o.write = function (section_id, value) {
 			return true;
 		};
 
 		o.onchange = function (ev, section_id, value) {
-			var sections = getUciSections('rule');
-			if (sections.length === 0) {
-				ui.addTimeLimitedNotification(null, E('p', _('Please add at least one rule first')), 3000, 'warning');
-				return;
-			}
-			sections.forEach(element => {
-				var sectionId = element['.name'];
-				uci.set('timecontrol', sectionId, 'temporaryControl', 0);
-				uci.set('timecontrol', sectionId, 'temporaryDuration', value);
-			});
-			this.map.save(null, true).then(function () {
-				ui.addTimeLimitedNotification(null, E('p', _('Set temporary unblock duration for all rules successfully')), 3000, 'success');
-			});
+			var targetRules = getTargetRules(ruleSelectType, selectedRules);
+			setTemporaryDurationOption(this, targetRules, 0, value);
 		};
 
 		s = m.section(form.GridSection, 'rule', _('Control Rules'));

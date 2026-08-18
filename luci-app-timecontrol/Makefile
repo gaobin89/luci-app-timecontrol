@@ -6,8 +6,8 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-timecontrol
-PKG_VERSION:=2.4.4
-PKG_RELEASE:=20260811
+PKG_VERSION:=2.4.5
+PKG_RELEASE:=20260818
 
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)
 PO2LMO_DIR:=$(TOPDIR)/feeds/luci/modules/luci-base/src

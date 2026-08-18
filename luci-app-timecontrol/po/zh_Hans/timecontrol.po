@@ -101,11 +101,11 @@ msgstr "快速设置"
 msgid "Suggestion and feedback"
 msgstr "建议与反馈"
 
-msgid "Set unblock duration for all rules"
-msgstr "为所有规则设置临时解禁时间"
+msgid "Set unblock duration for selected rules"
+msgstr "为所选规则设置临时解禁时间"
 
-msgid "Set block duration for all rules"
-msgstr "为所有规则设置临时封禁时间"
+msgid "Set block duration for selected rules"
+msgstr "为所选规则设置临时封禁时间"
 
 msgid "Example"
 msgstr "例如"
@@ -161,8 +161,35 @@ msgstr "接口限制"
 msgid "Please add at least one rule first"
 msgstr "请先至少添加一条规则"
 
-msgid "Set temporary block duration for all rules successfully"
-msgstr "为所有规则设置临时封禁时间成功"
+msgid "Set temporary block duration for selected rules successfully"
+msgstr "为所选规则设置临时封禁时间成功"
 
-msgid "Set temporary unblock duration for all rules successfully"
-msgstr "为所有规则设置临时解封时间成功"
+msgid "Set temporary unblock duration for selected rules successfully"
+msgstr "为所选规则设置临时解封时间成功"
+
+msgid "Target Rules"
+msgstr "目标规则"
+
+msgid "All Rules"
+msgstr "所有规则"
+
+msgid "Choose all rules"
+msgstr "选择所有规则"
+
+msgid "Enabled Rules"
+msgstr "已启用的规则"
+
+msgid "Choose all enabled rules"
+msgstr "选择所有已经启用的规则"
+
+msgid "Disabled Rules"
+msgstr "已禁用的规则"
+
+msgid "Choose all disabled rules"
+msgstr "选择所有已经禁用的规则"
+
+msgid "Manually Choose"
+msgstr "手动选择"
+
+msgid "Manually Choose rules"
+msgstr "手动选择规则"
