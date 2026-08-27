@@ -193,3 +193,9 @@ msgstr "手动选择"
 
 msgid "Manually Choose rules"
 msgstr "手动选择规则"
+
+msgid "No rules available"
+msgstr "暂无可用规则"
+
+msgid "Please add rules first and refresh the page"
+msgstr "请先添加规则后刷新页面"

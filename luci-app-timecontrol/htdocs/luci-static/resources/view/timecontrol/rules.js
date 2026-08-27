@@ -403,6 +403,9 @@ function addTimeRangeOption(s, tab, name, label, description) {
 	return o;
 }
 
+var ruleSelectType = '1';
+var selectedRules = [];
+
 function getTargetRules(ruleSelectType, selectedRules) {
 	var targetRules = [];
 	var sections = getUciSections('rule');
@@ -517,9 +520,6 @@ if (typeof ui.addTimeLimitedNotification !== 'function') {
 	};
 	ui.addTimeLimitedNotification = addTimeLimitedNotification;
 }
-
-var ruleSelectType = '1';
-var selectedRules = [];
 
 return view.extend({
 	callHostHints: rpc.declare({
@@ -653,19 +653,27 @@ return view.extend({
 
 		(function () {
 			var sections = getUciSections('rule');
-			if (sections.length === 0) {
-				return;
+			if (sections.length > 0) {
+				sections.forEach(element => {
+					var sectionId = element['.name'];
+					if (sectionId) {
+						var ruleName = element['name'] || '';
+						if (ruleName === null || ruleName === undefined || (typeof ruleName === 'string' && ruleName.trim() === '')) {
+							o.value(sectionId, _('Unnamed rule') + ' (' + sectionId + ')');
+						} else {
+							o.value(sectionId, ruleName + ' (' + sectionId + ')');
+						}
+					}
+				});
+			} else {
+				// 关键修复：添加占位值避免 Object.keys 报错
+				o.value('_placeholder_', _('No rules available'));
+				o.description = _('Please add rules first and refresh the page');
+				o.optional = false;
+				o.rmempty = true;
+				o.readonly = true;
+				o.default = '_placeholder_';
 			}
-			sections.forEach(element => {
-				var sectionId = element['.name'];
-				var ruleName = element['name'] || '';
-				if (ruleName === null || ruleName === undefined || (typeof ruleName === 'string' && ruleName.trim() === '')) {
-					o.value(sectionId, _('Unnamed rule') + ' (' + sectionId + ')');
-				}
-				else {
-					o.value(sectionId, ruleName + ' (' + sectionId + ')');
-				}
-			});
 		})();
 
 		o.onchange = function (ev, section_id, value) {
