@@ -581,7 +581,6 @@ return view.extend({
 
 		o.onchange = function (ev, section_id, value) {
 			uci.set('timecontrol', section_id, 'enable', value);
-			uci.save();
 		};
 
 		o = s.taboption('global', form.RichListValue, 'controlType', _('Control Type'), _('Set control type to blacklist or whitelist'));
@@ -592,7 +591,6 @@ return view.extend({
 
 		o.onchange = function (ev, section_id, value) {
 			uci.set('timecontrol', section_id, 'controlType', value);
-			uci.save();
 		};
 
 		o = s.taboption('restriction', widgets.DeviceSelect, 'rejectInterface', _('Interface'), _('The interface is only rejected in whitelist mode, unspecified means reject all interfaces'));
@@ -604,7 +602,6 @@ return view.extend({
 
 		o.onchange = function (ev, section_id, value) {
 			uci.set('timecontrol', section_id, 'rejectInterface', value);
-			uci.save();
 		};
 
 		o = addWeekdayOption(s, 'restriction', 'weekdays', _('Week Days'));
@@ -612,7 +609,6 @@ return view.extend({
 
 		o.onchange = function (ev, section_id, value) {
 			uci.set('timecontrol', section_id, 'weekdays', value);
-			uci.save();
 		};
 
 		o = addTimeRangeOption(s, 'restriction', 'timerangelist', _('Time Ranges'), _('Example') + ': ' + '00:00:00-10:00:00,11:00:00-13:59:59');
