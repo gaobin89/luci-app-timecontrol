@@ -159,7 +159,7 @@ set_Rules() {
 			iifname_param="iifname { ${interface} } "
 		fi
 
-		TZ=UTC nft "add rule inet fw4 timecontrol_forward_reject ${ether_saddr_param} ${meta_hour_param} ${meta_day_param} ${iifname_param} counter jump handle_reject comment \"!fw4: Time control\""
+		TZ=UTC nft "add rule inet fw4 timecontrol_forward_drop ${ether_saddr_param} ${meta_hour_param} ${meta_day_param} ${iifname_param} counter drop comment \"!fw4: Time control\""
 		TZ=UTC nft "add rule inet fw4 timecontrol_dstnat_accept ${ether_saddr_param} ${meta_hour_param} ${meta_day_param} ${iifname_param} counter accept comment \"!fw4: Time control\""
 	fi
 
@@ -319,10 +319,10 @@ Initialize() {
 }
 
 set_nftablesChains() {
-	if nft list chain inet fw4 timecontrol_forward_reject >/dev/null 2>&1; then
-		nft flush chain inet fw4 timecontrol_forward_reject
+	if nft list chain inet fw4 timecontrol_forward_drop >/dev/null 2>&1; then
+		nft flush chain inet fw4 timecontrol_forward_drop
 	else
-		nft add chain inet fw4 timecontrol_forward_reject
+		nft add chain inet fw4 timecontrol_forward_drop
 	fi
 
 	if nft list chain inet fw4 timecontrol_dstnat_accept >/dev/null 2>&1; then
@@ -334,14 +334,22 @@ set_nftablesChains() {
 
 set_nftablesRules() {
 
-	for chain in forward dstnat; do
-		local jumpChain
+	ip4_address=$(ip addr show br-lan 2>/dev/null | awk '/inet /{print $2}' | tr '\n' ',' | sed 's/,$//')
+	ip6_address=$(ip addr show br-lan 2>/dev/null | awk '/inet6 /{print $2}' | tr '\n' ',' | sed 's/,$//')
+
+	for chain in forward dstnat mangle_prerouting; do
+		local jumpChain ip4_daddr_param ip6_daddr_param
 		case $chain in
 		forward)
-			jumpChain="timecontrol_forward_reject"
+			jumpChain="timecontrol_forward_drop"
 			;;
 		dstnat)
 			jumpChain="timecontrol_dstnat_accept"
+			;;
+		mangle_prerouting)
+			jumpChain="timecontrol_forward_drop"
+			[ -n "$ip4_address" ] && ip4_daddr_param="ip daddr != { $ip4_address } "
+			[ -n "$ip6_address" ] && ip6_daddr_param="ip6 daddr != { $ip6_address } "
 			;;
 		*) ;;
 		esac
@@ -352,7 +360,12 @@ set_nftablesRules() {
 			for handle in $handles; do
 				nft delete rule inet fw4 $chain handle $handle 2>/dev/null
 			done
-			nft "insert rule inet fw4 $chain counter jump "$jumpChain" comment \"!fw4: Time control\" " 2>/dev/null
+			if [ "$chain" = "mangle_prerouting" ]; then
+				[ -n "$ip4_daddr_param" ] && nft "insert rule inet fw4 $chain ${ip4_daddr_param}counter jump $jumpChain comment \"!fw4: Time control\"" 2>/dev/null
+				[ -n "$ip6_daddr_param" ] && nft "insert rule inet fw4 $chain ${ip6_daddr_param}counter jump $jumpChain comment \"!fw4: Time control\"" 2>/dev/null
+			else
+				nft "insert rule inet fw4 $chain counter jump $jumpChain comment \"!fw4: Time control\"" 2>/dev/null
+			fi
 			logger -t timecontrol "set rule position to first (chain: $chain)"
 		fi
 	done
@@ -528,23 +541,23 @@ stop() {
 		done
 		cleanup_ipset
 	else
-		for chain in forward dstnat; do
+		for chain in forward dstnat mangle_prerouting; do
 			local jumpChain
 			case $chain in
-			forward)
-				jumpChain="timecontrol_forward_reject"
-				;;
 			dstnat)
 				jumpChain="timecontrol_dstnat_accept"
 				;;
-			*) ;;
+			*)
+				jumpChain="timecontrol_forward_drop"
+				;;
 			esac
+
 			rule_handles=$(nft -a list chain inet fw4 $chain | grep "$jumpChain" | awk '{print $NF}')
 			for handle in $rule_handles; do
 				nft delete rule inet fw4 $chain handle $handle >/dev/null 2>&1
 			done
 		done
-		nft delete chain inet fw4 timecontrol_forward_reject >/dev/null 2>&1
+		nft delete chain inet fw4 timecontrol_forward_drop >/dev/null 2>&1
 		nft delete chain inet fw4 timecontrol_dstnat_accept >/dev/null 2>&1
 	fi
 	logger -t timecontrol "stopped"

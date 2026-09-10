@@ -172,7 +172,7 @@ var callExec = rpc.declare({
 function checkFirewallChain() {
 	var fw4 = L.hasSystemFeature('firewall4');
 	if (fw4) {
-		return checkNftablesChain('timecontrol_forward_reject');
+		return checkNftablesChain('timecontrol_forward_drop');
 	} else {
 		return checkIptablesChain('timecontrol_forward_reject');
 	}
