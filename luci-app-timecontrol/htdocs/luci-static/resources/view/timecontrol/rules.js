@@ -721,12 +721,23 @@ return view.extend({
 		s.tab('timed', _('Time Restrictions'));
 		s.tab('other', _('Other Settings'));
 
-		s.sectiontitle = function (section_id) {
+		s.modaltitle = function (section_id) {
 			var ruleName = uci.get('timecontrol', section_id, 'name');
 			if (ruleName === null || ruleName === undefined || (typeof ruleName === 'string' && ruleName.trim() === '')) {
-				return _('Unnamed rule') + ' (' + section_id + ')';
+				return _('Control Rules') + ' » ' + _('Unnamed rule') + ' (' + section_id + ')';
 			}
-			return ruleName + ' (' + section_id + ')';
+			return _('Control Rules') + ' » ' + ruleName + ' (' + section_id + ')';
+		};
+
+		o = s.option(form.DummyValue, 'name', _('Name'));
+		o.modalonly = false;
+
+		o.textvalue = function (section_id) {
+			var ruleName = uci.get('timecontrol', section_id, 'name');
+			if (ruleName === null || ruleName === undefined || (typeof ruleName === 'string' && ruleName.trim() === '')) {
+				return '<b>' + _('Unnamed rule') + ' (' + section_id + ')' + '</b>';
+			}
+			return '<b>' + ruleName + ' (' + section_id + ')' + '</b>';
 		};
 
 		o = s.option(form.Flag, 'enable', _('Enable'));
