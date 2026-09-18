@@ -199,3 +199,21 @@ msgstr "暂无可用规则"
 
 msgid "Please add rules first and refresh the page"
 msgstr "请先添加规则后刷新页面"
+
+msgid "Strong Control"
+msgstr "强效管控"
+
+msgid "Rule Action"
+msgstr "规则操作"
+
+msgid "Drop"
+msgstr "丢弃"
+
+msgid "Reject"
+msgstr "拒绝"
+
+msgid "Drop matched packets"
+msgstr "丢弃匹配的数据包"
+
+msgid "Reject matched packets with \"TCP reset\" or \"ICMP type port-unreachable\""
+msgstr "拒绝匹配的数据包(\"TCP reset\"或\"ICMP type port-unreachable\")"
