@@ -169,8 +169,8 @@ var callExec = rpc.declare({
 	params: ['command', 'params', 'env']
 });
 
-var fw4 = L.hasSystemFeature('firewall4');
 function checkFirewallChain() {
+	var fw4 = L.hasSystemFeature('firewall4');
 	if (fw4) {
 		return checkNftablesChain('timecontrol_forward');
 	} else {
@@ -584,7 +584,7 @@ return view.extend({
 			uci.save();
 		};
 
-		if (fw4) {
+		if (L.hasSystemFeature('firewall4')) {
 			o = s.taboption('global', form.Flag, 'strong', _('Strong Control'));
 			o.default = o.disabled;
 			o.rmempty = false;
