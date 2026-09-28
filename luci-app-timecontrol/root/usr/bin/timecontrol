@@ -54,7 +54,7 @@ load_config() {
     config_load "$CONF"
     TIMECONTROL_ENABLE=$(config_n_get "$CONF" "config" "enable" 0)
     TIMECONTROL_TYPE=$(config_n_get "$CONF" "config" "controlType" 0)
-	TIMECONTROL_Action=$(config_n_get "$CONF" "config" "ruleAction" 0)
+    TIMECONTROL_Action=$(config_n_get "$CONF" "config" "ruleAction" 0)
     
     if [ $TIMECONTROL_ENABLE -ne 1 ]; then
         logger -t timecontrol "timecontrol is disabled, exiting."
@@ -108,11 +108,11 @@ set_Rules() {
                 case $table in
                     filter)
                         chain="timecontrol_forward"
-						if [ $TIMECONTROL_Action -eq 1 ]; then
-        					target="reject"
-						else
-                        	target="DROP"
-    					fi
+                        if [ $TIMECONTROL_Action -eq 1 ]; then
+                            target="reject"
+                        else
+                            target="DROP"
+                        fi
                     ;;
                     nat)
                         chain="timecontrol_dstnat"
@@ -165,13 +165,13 @@ set_Rules() {
             local interface=\"$(echo $interfacelist | sed 's/ /","/g')\"
             iifname_param="iifname { ${interface} } "
         fi
-
+        
         local target
-		if [ $TIMECONTROL_Action -eq 1 ]; then
-        	target="jump handle_reject"
-		else
+        if [ $TIMECONTROL_Action -eq 1 ]; then
+            target="jump handle_reject"
+        else
             target="drop"
-    	fi
+        fi
         
         TZ=UTC nft "add rule inet fw4 timecontrol_forward ${ether_saddr_param} ${meta_hour_param} ${meta_day_param} ${iifname_param} counter ${target} comment \"!fw4: Time control\""
         TZ=UTC nft "add rule inet fw4 timecontrol_dstnat ${ether_saddr_param} ${meta_hour_param} ${meta_day_param} ${iifname_param} counter accept comment \"!fw4: Time control\""
@@ -348,14 +348,20 @@ set_nftablesChains() {
 
 set_nftablesRules() {
     TIMECONTROL_STRONG=$(config_n_get "$CONF" "config" "strong" 0)
+    local wanInterface=$(config_n_get "$CONF" "config" "wanInterface")
     ip4_address=$(ip addr show br-lan 2>/dev/null | awk '/inet /{print $2}' | tr '\n' ',' | sed 's/,$//')
     ip6_address=$(ip addr show br-lan 2>/dev/null | awk '/inet6 /{print $2}' | tr '\n' ',' | sed 's/,$//')
     
     for chain in forward dstnat mangle_prerouting; do
         local jumpChain ip4_daddr_param ip6_daddr_param
+        oifname_param=""
         case $chain in
             forward)
                 jumpChain="timecontrol_forward"
+                if [ -n "$wanInterface" ]; then
+                    wanInterface=\"$(echo $wanInterface | sed 's/ /","/g')\"
+                    oifname_param="oifname { ${wanInterface} } "
+                fi
             ;;
             dstnat)
                 jumpChain="timecontrol_dstnat"
@@ -371,27 +377,46 @@ set_nftablesRules() {
         first_rule=$(nft list chain inet fw4 $chain | sed -n '4p' | grep -E "$jumpChain")
         if [ -z "$first_rule" ]; then
             handles=$(nft -a list chain inet fw4 $chain | grep "$jumpChain" | awk '{print $NF}')
-            for handle in $handles; do
-                nft delete rule inet fw4 $chain handle $handle 2>/dev/null
-            done
+            delete_nftablesRules "$handles" "$chain"
             if [ "$chain" = "mangle_prerouting" ]; then
-				[ $TIMECONTROL_STRONG -ne 1 ] && continue
-        		[ -n "$ip4_daddr_param" ] && nft "insert rule inet fw4 $chain ${ip4_daddr_param}counter jump $jumpChain comment \"!fw4: Time control\"" 2>/dev/null
-            	[ -n "$ip6_daddr_param" ] && nft "insert rule inet fw4 $chain ${ip6_daddr_param}counter jump $jumpChain comment \"!fw4: Time control\"" 2>/dev/null
-			else
-                nft "insert rule inet fw4 $chain counter jump $jumpChain comment \"!fw4: Time control\"" 2>/dev/null
+                [ $TIMECONTROL_STRONG -ne 1 ] && continue
+                [ -n "$ip4_daddr_param" ] && nft "insert rule inet fw4 $chain $ip4_daddr_param counter jump $jumpChain comment \"!fw4: Time control\"" 2>/dev/null
+                [ -n "$ip6_daddr_param" ] && nft "insert rule inet fw4 $chain $ip6_daddr_param counter jump $jumpChain comment \"!fw4: Time control\"" 2>/dev/null
+            else
+                nft "insert rule inet fw4 $chain $oifname_param counter jump $jumpChain comment \"!fw4: Time control\"" 2>/dev/null
             fi
             logger -t timecontrol "set rule position to first (chain: $chain)"
-			[ $TIMECONTROL_STRONG -eq 1 ] && logger -t timecontrol "strong control --> enabled"
-		else
-			if [ "$chain" = "mangle_prerouting" ] && [ $TIMECONTROL_STRONG -ne 1 ]; then
-				rule_handles=$(nft -a list chain inet fw4 $chain | grep "$jumpChain" | awk '{print $NF}')
-            	for handle in $rule_handles; do
-                	nft delete rule inet fw4 $chain handle $handle >/dev/null 2>&1
-            	done
-				logger -t timecontrol "strong control --> disabled"
-            fi
+            [ $TIMECONTROL_STRONG -eq 1 ] && logger -t timecontrol "strong control --> enabled"
+        else
+            case $chain in
+                forward)
+                    oifname=$(nft -a list chain inet fw4 $chain | grep "$jumpChain" | head -n1 | sed -E 's/.*oifname[[:space:]]+//; s/[[:space:]]*counter.*//' | grep -oE '"[^"]+"' | tr -d '"' | tr '\n' ' ')
+                    oifname=\"$(echo $oifname | sed 's/ /","/g')\"
+                    if [ "$oifname" != "$wanInterface" ]; then
+                        handles=$(nft -a list chain inet fw4 $chain | grep "$jumpChain" | awk '{print $NF}')
+                        delete_nftablesRules "$handles" "$chain"
+                        nft "insert rule inet fw4 $chain $oifname_param counter jump $jumpChain comment \"!fw4: Time control\"" 2>/dev/null
+                        logger -t timecontrol "set rule position to first (chain: $chain)"
+                    fi
+                ;;
+                mangle_prerouting)
+                    if [ $TIMECONTROL_STRONG -ne 1 ]; then
+                        rule_handles=$(nft -a list chain inet fw4 $chain | grep "$jumpChain" | awk '{print $NF}')
+                        delete_nftablesRules "$rule_handles" "$chain"
+                        logger -t timecontrol "strong control --> disabled"
+                    fi
+                ;;
+                *) ;;
+            esac
         fi
+    done
+}
+
+delete_nftablesRules() {
+    local rule_handles=$1
+    local chain=$2
+    for handle in $rule_handles; do
+        nft delete rule inet fw4 $chain handle $handle >/dev/null 2>&1
     done
 }
 
@@ -577,9 +602,7 @@ stop() {
             esac
             
             rule_handles=$(nft -a list chain inet fw4 $chain | grep "$jumpChain" | awk '{print $NF}')
-            for handle in $rule_handles; do
-                nft delete rule inet fw4 $chain handle $handle >/dev/null 2>&1
-            done
+            delete_nftablesRules "$rule_handles" "$chain"
         done
         nft delete chain inet fw4 timecontrol_forward >/dev/null 2>&1
         nft delete chain inet fw4 timecontrol_dstnat >/dev/null 2>&1

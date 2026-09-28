@@ -606,7 +606,7 @@ return view.extend({
 			uci.save();
 		};
 
-		o = s.taboption('global', form.RichListValue, 'controlType', _('Control Type'), _('Set control type to blacklist or whitelist'));
+		o = s.taboption('global', form.RichListValue, 'controlType', _('Control Type'));
 		o.modalonly = true;
 		o.default = '0';
 		o.value('0', _('Blacklist'), _('Blocks network access only from blacklisted addresses'));
@@ -616,6 +616,19 @@ return view.extend({
 			uci.set('timecontrol', section_id, 'controlType', value);
 			uci.save();
 		};
+
+		if (L.hasSystemFeature('firewall4')) {
+			o = s.taboption('global', widgets.DeviceSelect, 'wanInterface', _('WAN Interface'));
+			o.nocreate = true;
+			o.modalonly = true;
+			o.unspecified = true;
+			o.multiple = true;
+
+			o.onchange = function (ev, section_id, value) {
+				uci.set('timecontrol', section_id, 'wanInterface', value);
+				uci.save();
+			};
+		}
 
 		o = s.taboption('restriction', widgets.DeviceSelect, 'rejectInterface', _('Interface'), _('The interface is only rejected in whitelist mode, unspecified means reject all interfaces'));
 		o.depends('controlType', '1');
